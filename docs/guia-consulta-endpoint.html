@@ -1,0 +1,112 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Cómo consultar el endpoint genero-cliente</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root {
+    --ink: #111827; --muted: #6b7280; --blue: #1e3a8a; --line: #2563eb; --soft: #f9fafb;
+    --border: #e5e7eb; --code-bg: #111827; --code-ink: #e5e7eb; --amber: #d97706; --amber-bg: #fffbeb;
+  }
+  html { background: #ffffff; }
+  body { font-family: "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif; color: var(--ink);
+         font-size: 10.5pt; line-height: 1.55; margin: 0; background: #ffffff; }
+  .page { max-width: 180mm; margin: 0 auto; }
+  h1 { font-size: 27pt; margin: 0 0 6px 0; line-height: 1.15; }
+  .subtitle { font-size: 14pt; color: #4b5563; margin: 0 0 26px 0; }
+  .cover { padding-top: 70mm; page-break-after: always; }
+  .meta { color: var(--muted); font-size: 9.5pt; margin-top: 18px; line-height: 1.6; }
+  h2 { color: var(--blue); font-size: 17pt; border-bottom: 3px solid var(--line); padding-bottom: 6px;
+       margin: 0 0 14px 0; page-break-before: always; page-break-after: avoid; }
+  h3 { color: var(--blue); font-size: 12.5pt; margin: 20px 0 8px 0; page-break-after: avoid; }
+  p { margin: 0 0 10px 0; }
+  ul, ol { margin: 0 0 10px 0; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  code { font-family: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace; font-size: 8.8pt;
+         background: #f3f4f6; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius: 7px; padding: 11px 14px;
+        font-family: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace; font-size: 8.3pt;
+        line-height: 1.45; white-space: pre-wrap; word-break: break-word; margin: 0 0 12px 0; }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
+  .file { font-family: Consolas, monospace; font-size: 8.5pt; color: var(--muted); margin: 6px 0 3px 0; }
+  .term { border: 1px solid var(--border); background: var(--soft); border-radius: 6px; padding: 5px 11px;
+          margin: 0 0 5px 0; page-break-inside: avoid; font-size: 9.8pt; line-height: 1.4; }
+  .term code { white-space: nowrap; }
+  .term b.t { color: var(--blue); }
+  .trap { border: 1px solid #fde68a; border-left: 5px solid var(--amber); background: var(--amber-bg);
+          border-radius: 4px; padding: 10px 14px; margin: 6px 0 12px 0; page-break-inside: avoid; }
+  .check { border: 1px solid #bbf7d0; border-left: 5px solid #16a34a; background: #f0fdf4;
+           border-radius: 4px; padding: 10px 14px; margin: 6px 0 12px 0; page-break-inside: avoid; }
+  .wwh { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0 0 12px 0; }
+  .wwh div { padding: 6px 0 2px 0; }
+  .wwh b { color: var(--blue); }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 12px 0; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #e5e7eb; text-align: left; padding: 6px 9px; border: 1px solid #d1d5db; }
+  td { padding: 6px 9px; border: 1px solid #d1d5db; vertical-align: top; }
+  figure { margin: 10px 0 16px 0; page-break-inside: avoid; }
+  figcaption { color: var(--muted); font-size: 9pt; text-align: center; margin-top: 6px; }
+  .toc ol { font-size: 10.5pt; }
+  .toc li { margin-bottom: 5px; }
+  a { color: #1d4ed8; text-decoration: none; word-break: break-all; }
+  .src { font-size: 8.8pt; color: var(--muted); }
+  .appendix pre { font-size: 7.8pt; }
+
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13px} th,td{border:1px solid #d0d5dd;padding:6px 8px;text-align:left;vertical-align:top} th{background:#f1f3f6}
+pre{white-space:pre-wrap;word-break:break-all}
+h1,h2,section,.page,main{page-break-before:auto !important;break-before:auto !important}
+h2{margin-top:22px}
+.page{padding-top:24px}</style></head><body><main class="page">
+<h1>Cómo consultar el endpoint <code>genero-cliente</code></h1>
+<p>Modelo que predice el género musical probable de un cliente a partir de su proveedor de correo, país y ciudad. Entrenado cada día por un job de Databricks y publicado en un endpoint de Databricks Model Serving.</p>
+<h2>Datos de acceso</h2>
+<table><thead><tr><th>Dato</th><th>Valor</th></tr></thead><tbody><tr><td>URL del endpoint</td><td><code><a href="https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations">https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations</a></code></td></tr><tr><td>Token de acceso</td><td>se entrega por separado; va en la cabecera <code>Authorization: Bearer &lt;token&gt;</code></td></tr><tr><td>Método</td><td><code>POST</code>, cuerpo JSON, cabecera <code>Content-Type: application/json</code></td></tr></tbody></table>
+<h2>Entrada</h2>
+<p>Una lista de registros con tres campos de texto:</p>
+<table><thead><tr><th>Campo</th><th>Qué es</th><th>Ejemplo</th></tr></thead><tbody><tr><td><code>tipo_correo</code></td><td>proveedor del correo (<code>gmail</code>, <code>yahoo</code>, <code>hotmail</code>...); también se acepta el correo completo</td><td><code>yahoo</code> o <code>ana@yahoo.com.br</code></td></tr><tr><td><code>pais</code></td><td>país del cliente</td><td><code>Germany</code></td></tr><tr><td><code>ciudad</code></td><td>ciudad del cliente</td><td><code>Berlin</code></td></tr></tbody></table>
+<h2>Ejemplo con curl</h2>
+<p>Sustituya <code>PEGUE_AQUI_EL_TOKEN</code> por el token, sin comillas ni signos <code>&lt;</code> <code>&gt;</code>:</p>
+<pre><code>
+curl -X POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations \
+  -H "Authorization: Bearer PEGUE_AQUI_EL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dataframe_records": [{"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"}]}'
+</code></pre>
+<p>En Git Bash o PowerShell de Windows, el cuerpo va con comillas dobles escapadas:</p>
+<pre><code>
+curl -X POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations -H "Authorization: Bearer PEGUE_AQUI_EL_TOKEN" -H "Content-Type: application/json" -d "{\"dataframe_records\": [{\"tipo_correo\": \"yahoo\", \"pais\": \"Germany\", \"ciudad\": \"Berlin\"}]}"
+</code></pre>
+<h2>Ejemplo con Python</h2>
+<pre><code>
+import os, requests
+
+URL = "https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations"
+TOKEN = os.environ["DATABRICKS_TOKEN"]          # el token, guardado en una variable de entorno
+
+respuesta = requests.post(
+    URL,
+    headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+    json={"dataframe_records": [
+        {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+        {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+    ]},
+    timeout=60,
+)
+print(respuesta.status_code)
+print(respuesta.json())
+</code></pre>
+<h2>Respuesta</h2>
+<p>Un objeto <code>predictions</code> con un resultado por registro enviado, en el mismo orden:</p>
+<pre><code>
+{
+  "predictions": [
+    {
+      "genero": "Metal",
+      "top_1": "Metal", "p_1": 0.4076,
+      "top_2": "Rock", "p_2": 0.3364,
+      "top_3": "Alternative &amp; Punk", "p_3": 0.0752
+    }
+  ]
+}
+</code></pre>
+<p><code>genero</code> es el género predicho; <code>top_1</code> a <code>top_3</code> son los tres géneros más probables con su probabilidad.</p>
+<h2>Si algo falla</h2>
+<table><thead><tr><th>Respuesta</th><th>Causa</th><th>Solución</th></tr></thead><tbody><tr><td><code>401 Credential was not sent or was of an unsupported type</code></td><td>el token no llegó bien (falta, con <code>&lt;</code> <code>&gt;</code>, o con espacios)</td><td>revise la cabecera <code>Authorization: Bearer &lt;token&gt;</code></td></tr><tr><td><code>403</code></td><td>el token no tiene permiso sobre este endpoint o ya venció</td><td>pida un token nuevo</td></tr><tr><td>la primera llamada tarda más de lo normal</td><td>el endpoint se apaga cuando no se usa y arranca con la primera petición</td><td>espere y reintente; las siguientes responden en segundos</td></tr><tr><td><code>400</code> con mención a columnas</td><td>falta alguno de los tres campos o el nombre está mal escrito</td><td>use exactamente <code>tipo_correo</code>, <code>pais</code>, <code>ciudad</code></td></tr></tbody></table>
+<p>Código y documentación completa: <a href="https://github.com/consvzgz-up/databricks-modelo-genero">https://github.com/consvzgz-up/databricks-modelo-genero</a></p>
+<p class="meta">Bases de Datos, UP. Octubre de 2026.</p></main></body></html>
