@@ -1,0 +1,1637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>databricks-genre-model, explained step by step</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root {
+    --ink: #111827; --muted: #6b7280; --blue: #1e3a8a; --line: #2563eb; --soft: #f9fafb;
+    --border: #e5e7eb; --code-bg: #111827; --code-ink: #e5e7eb; --amber: #d97706; --amber-bg: #fffbeb;
+  }
+  html { background: #ffffff; }
+  body { font-family: "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif; color: var(--ink);
+         font-size: 10.5pt; line-height: 1.55; margin: 0; background: #ffffff; }
+  .page { max-width: 180mm; margin: 0 auto; }
+  h1 { font-size: 27pt; margin: 0 0 6px 0; line-height: 1.15; }
+  .subtitle { font-size: 14pt; color: #4b5563; margin: 0 0 26px 0; }
+  .cover { padding-top: 70mm; page-break-after: always; }
+  .meta { color: var(--muted); font-size: 9.5pt; margin-top: 18px; line-height: 1.6; }
+  h2 { color: var(--blue); font-size: 17pt; border-bottom: 3px solid var(--line); padding-bottom: 6px;
+       margin: 0 0 14px 0; page-break-before: always; page-break-after: avoid; }
+  h3 { color: var(--blue); font-size: 12.5pt; margin: 20px 0 8px 0; page-break-after: avoid; }
+  p { margin: 0 0 10px 0; }
+  ul, ol { margin: 0 0 10px 0; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  code { font-family: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace; font-size: 8.8pt;
+         background: #f3f4f6; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius: 7px; padding: 11px 14px;
+        font-family: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace; font-size: 8.3pt;
+        line-height: 1.45; white-space: pre-wrap; word-break: break-word; margin: 0 0 12px 0; }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
+  .file { font-family: Consolas, monospace; font-size: 8.5pt; color: var(--muted); margin: 6px 0 3px 0; }
+  .term { border: 1px solid var(--border); background: var(--soft); border-radius: 6px; padding: 5px 11px;
+          margin: 0 0 5px 0; page-break-inside: avoid; font-size: 9.8pt; line-height: 1.4; }
+  .term code { white-space: nowrap; }
+  .term b.t { color: var(--blue); }
+  .trap { border: 1px solid #fde68a; border-left: 5px solid var(--amber); background: var(--amber-bg);
+          border-radius: 4px; padding: 10px 14px; margin: 6px 0 12px 0; page-break-inside: avoid; }
+  .check { border: 1px solid #bbf7d0; border-left: 5px solid #16a34a; background: #f0fdf4;
+           border-radius: 4px; padding: 10px 14px; margin: 6px 0 12px 0; page-break-inside: avoid; }
+  .wwh { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0 0 12px 0; }
+  .wwh div { padding: 6px 0 2px 0; }
+  .wwh b { color: var(--blue); }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 12px 0; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #e5e7eb; text-align: left; padding: 6px 9px; border: 1px solid #d1d5db; }
+  td { padding: 6px 9px; border: 1px solid #d1d5db; vertical-align: top; }
+  figure { margin: 10px 0 16px 0; page-break-inside: avoid; }
+  figcaption { color: var(--muted); font-size: 9pt; text-align: center; margin-top: 6px; }
+  .toc ol { font-size: 10.5pt; }
+  .toc li { margin-bottom: 5px; }
+  a { color: #1d4ed8; text-decoration: none; word-break: break-all; }
+  .src { font-size: 8.8pt; color: var(--muted); }
+  .appendix pre { font-size: 7.8pt; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<section class="cover">
+  <h1>databricks-genre-model, explained step by step</h1>
+  <p class="subtitle">From the Chinook view to a scheduled Databricks job and a token-protected serving endpoint</p>
+  <p>This document walks through everything that was built for the second part of the <i>Bases de Datos</i>
+  assignment: the same music-genre model as <code>pipeline-db-ml</code>, now trained every day by a Databricks
+  job and published on a Databricks Model Serving endpoint that anyone with the URL and an access token can query.</p>
+  <p>Each step explains <b>what</b> was done, <b>why</b> it was done that way and <b>how</b> to check that it
+  works, with the real code, the real commands and the real output of the first run.</p>
+  <div class="meta">
+    Repository: https://github.com/consvzgz-up/databricks-genre-model<br>
+    Endpoint URL: https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations<br>
+    Date: October 9, 2026
+  </div>
+</section>
+
+<section class="toc">
+  <h2 style="page-break-before: avoid;">Contents</h2>
+  <ol>
+    <li>The big picture</li>
+    <li>Vocabulary you need</li>
+    <li>Step 0. What we kept from pipeline-db-ml</li>
+    <li>Step 1. The data: from the Postgres dump to CSVs to Delta tables</li>
+    <li>Step 2. The bundle and the Databricks CLI</li>
+    <li>Step 3. Training and registering the model</li>
+    <li>Step 4. The serving endpoint</li>
+    <li>Step 5. The smoke test and querying from outside</li>
+    <li>Step 6. The schedule and what each run does</li>
+    <li>Step 7. The token and the delivery to the professor</li>
+    <li>Operating it: runs, costs, scale to zero, tearing down</li>
+    <li>Appendix. Full source of the four task files and the wrapper</li>
+  </ol>
+</section>
+
+<!-- ============================================================ 1 -->
+<section>
+<h2>1. The big picture</h2>
+<p>The question is the same as in the first assignment: a customer walks into the music store, we know three
+things about them (what kind of email they use, their country and their city) and we want to guess which music
+genre they are most likely to buy. What the assignment asks for now is different infrastructure:</p>
+<ol>
+  <li>A <b>Databricks job</b> that trains the model <b>periodically</b>.</li>
+  <li>The trained model <b>published on a Databricks serving endpoint</b>.</li>
+  <li>For the professor: the <b>endpoint URL</b>, an <b>access token</b> and an <b>example of how to query it</b>.</li>
+</ol>
+<p>Everything lives in one Git repository. One command (<code>databricks bundle deploy</code>) copies the code and
+the data into the Databricks workspace and creates the job; the job then does the rest by itself, every day.</p>
+
+<figure>
+<svg viewBox="0 0 700 330" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#374151"/>
+    </marker>
+  </defs>
+  <!-- laptop / repo -->
+  <rect x="8" y="20" width="150" height="86" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="83" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a8a">Git repository</text>
+  <text x="83" y="60" text-anchor="middle" font-size="10" fill="#1e3a8a">data/*.csv (5 tables)</text>
+  <text x="83" y="74" text-anchor="middle" font-size="10" fill="#1e3a8a">src/*.py, sql/*.sql</text>
+  <text x="83" y="88" text-anchor="middle" font-size="10" fill="#1e3a8a">databricks.yml + job yml</text>
+  <line x1="158" y1="63" x2="226" y2="63" stroke="#374151" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="192" y="55" text-anchor="middle" font-size="9" fill="#374151">bundle deploy</text>
+
+  <!-- workspace dashed box -->
+  <rect x="232" y="8" width="460" height="230" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-dasharray="6 4"/>
+  <text x="244" y="26" font-size="10" fill="#6b7280">Databricks Free Edition workspace (serverless)</text>
+
+  <!-- job box -->
+  <rect x="246" y="36" width="250" height="190" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
+  <text x="371" y="56" text-anchor="middle" font-size="12.5" font-weight="700" fill="#166534">job genre_model_train</text>
+  <text x="371" y="70" text-anchor="middle" font-size="9.5" fill="#166534">daily 03:00 America/Mexico_City</text>
+  <g font-size="10.5" fill="#14532d">
+    <rect x="262" y="80" width="218" height="28" rx="5" fill="#ffffff" stroke="#16a34a"/>
+    <text x="371" y="98" text-anchor="middle">1 load_chinook: CSV → Delta + view</text>
+    <rect x="262" y="116" width="218" height="28" rx="5" fill="#ffffff" stroke="#16a34a"/>
+    <text x="371" y="134" text-anchor="middle">2 train_model: fit, log, register</text>
+    <rect x="262" y="152" width="218" height="28" rx="5" fill="#ffffff" stroke="#16a34a"/>
+    <text x="371" y="170" text-anchor="middle">3 deploy_endpoint: create or update</text>
+    <rect x="262" y="188" width="218" height="28" rx="5" fill="#ffffff" stroke="#16a34a"/>
+    <text x="371" y="206" text-anchor="middle">4 smoke_test: query 3 rows</text>
+  </g>
+  <line x1="371" y1="108" x2="371" y2="116" stroke="#374151" stroke-width="1.2"/>
+  <line x1="371" y1="144" x2="371" y2="152" stroke="#374151" stroke-width="1.2"/>
+  <line x1="371" y1="180" x2="371" y2="188" stroke="#374151" stroke-width="1.2"/>
+
+  <!-- UC model -->
+  <rect x="520" y="56" width="160" height="66" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="600" y="76" text-anchor="middle" font-size="11.5" font-weight="700" fill="#92400e">Unity Catalog model</text>
+  <text x="600" y="92" text-anchor="middle" font-size="9.5" fill="#92400e">workspace.chinook.</text>
+  <text x="600" y="105" text-anchor="middle" font-size="9.5" fill="#92400e">genero_cliente @Champion</text>
+  <line x1="480" y1="130" x2="518" y2="100" stroke="#374151" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- endpoint -->
+  <rect x="520" y="146" width="160" height="66" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.4"/>
+  <text x="600" y="166" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5b21b6">serving endpoint</text>
+  <text x="600" y="182" text-anchor="middle" font-size="9.5" fill="#5b21b6">genero-cliente</text>
+  <text x="600" y="195" text-anchor="middle" font-size="9.5" fill="#5b21b6">Small, scale to zero</text>
+  <line x1="600" y1="122" x2="600" y2="144" stroke="#374151" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="480" y1="166" x2="518" y2="172" stroke="#374151" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  <line x1="518" y1="200" x2="482" y2="202" stroke="#374151" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+
+  <!-- client -->
+  <rect x="470" y="268" width="222" height="54" rx="8" fill="#ffffff" stroke="#374151" stroke-width="1.2"/>
+  <text x="581" y="289" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111827">curl / Python (professor)</text>
+  <text x="581" y="306" text-anchor="middle" font-size="9.5" fill="#374151">POST …/invocations, Bearer &lt;TOKEN&gt;</text>
+  <line x1="600" y1="266" x2="600" y2="214" stroke="#374151" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="612" y="248" font-size="9" fill="#374151">internet (HTTPS)</text>
+</svg>
+<figcaption>Figure 1. The flow. The repository is deployed once; the job then loads, trains, registers, publishes
+and tests on every run. Dashed arrows: task 3 changes the endpoint, task 4 queries it.</figcaption>
+</figure>
+
+<p>Compare with the first assignment. There, a cron container wrote a <code>.pkl</code> file into a shared folder
+and a FastAPI container read it. Here the "file" is a <b>versioned model in a registry</b>, the "cron" is a
+<b>scheduled job</b>, and the "API container" is a <b>managed endpoint</b>. Nobody administers a virtual machine.</p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+<h2>2. Vocabulary you need</h2>
+<div class="term"><b class="t">Databricks Free Edition.</b> A free Databricks account with one workspace. It runs
+only <i>serverless</i> compute, allows at most 5 concurrent job tasks per account, a limited number of serving
+endpoints (CPU only), outbound internet only to a list of trusted domains, and a daily fair-use quota: if you exceed
+it, compute is switched off for the rest of the day.
+<span class="src">(<a href="https://docs.databricks.com/aws/en/getting-started/free-edition-limitations">free-edition-limitations</a>)</span></div>
+<div class="term"><b class="t">Serverless compute.</b> You do not create or size a cluster. You submit work and
+Databricks provides the machines, then releases them. For a Python task you only declare which libraries it needs
+(an <i>environment</i>).</div>
+<div class="term"><b class="t">Asset bundle.</b> A folder with a <code>databricks.yml</code> file that describes
+code, files and resources (jobs, schemas...) as YAML. <code>databricks bundle deploy</code> uploads the folder to the
+workspace and creates or updates the resources; <code>databricks bundle run</code> starts a job. The docs now also
+call them "Declarative Automation Bundles"; the commands are the same.</div>
+<div class="term"><b class="t">Job and task.</b> A <i>job</i> is a named, schedulable unit of work. It contains
+<i>tasks</i> (here, four Python scripts) with dependencies between them: a task starts only when the ones it
+<code>depends_on</code> have succeeded. Each execution is a <i>run</i>, with its own id, log and result.</div>
+<div class="term"><b class="t">Delta table and Unity Catalog.</b> A <i>Delta table</i> is Databricks' table format
+(Parquet files plus a transaction log). <i>Unity Catalog</i> is the governance layer that names everything with three
+levels, <code>catalog.schema.object</code>: our tables are <code>workspace.chinook.customer</code> and so on, the view
+is <code>workspace.chinook.vw_cliente_genero</code> and the model is <code>workspace.chinook.genero_cliente</code>.</div>
+<div class="term"><b class="t">MLflow run and registered model.</b> An MLflow <i>run</i> is one training session
+with its parameters, metrics (our <code>accuracy</code>) and files (our classification report). A
+<i>registered model</i> is a named entry in the registry; every time we log a new model under that name it gets a new
+<i>version</i> (1, 2, 3...).</div>
+<div class="term"><b class="t">Alias.</b> A movable label that points to one version of a registered model, like a
+Git tag you can move. We use <code>Champion</code>: "the version that should be served". Code loads
+<code>models:/workspace.chinook.genero_cliente@Champion</code> without knowing the number.</div>
+<div class="term"><b class="t">pyfunc model.</b> MLflow's generic Python model: a class with a
+<code>predict(context, model_input)</code> method. Wrapping the scikit-learn pipeline in a pyfunc lets us decide the
+output format (genre plus top 3) and clean the input before predicting.</div>
+<div class="term"><b class="t">Serving endpoint.</b> A managed HTTPS service that loads a registered model version
+and answers <code>POST /serving-endpoints/&lt;name&gt;/invocations</code> with predictions. It has a size
+(<code>Small</code>) and can be updated to a new version without downtime.</div>
+<div class="term"><b class="t">Scale to zero.</b> An endpoint option: when there is no traffic the endpoint releases
+its compute and costs nothing; the next request wakes it up, so the first call after an idle period takes longer.</div>
+<div class="term"><b class="t">Personal access token (PAT).</b> A long random string that acts as a password for
+the Databricks REST API on behalf of the user who created it. It is sent in the header
+<code>Authorization: Bearer &lt;token&gt;</code>. It has a lifetime, can be revoked, and must never be committed.
+<span class="src">(<a href="https://docs.databricks.com/aws/en/dev-tools/auth/pat">dev-tools/auth/pat</a>)</span></div>
+<div class="term"><b class="t">Quartz cron.</b> The schedule syntax Databricks jobs use. Unlike Linux cron it has a
+<b>seconds</b> field first: <code>0 0 3 * * ?</code> reads "second 0, minute 0, hour 3, every day of the month, every
+month, any day of the week", that is, every day at 03:00. The <code>?</code> means "no specific value" and is
+required in one of the two day fields.</div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+<h2>3. Step 0. What we kept from pipeline-db-ml</h2>
+<p>The first assignment (<code>consvzgz-up/pipeline-db-ml</code>, delivered September 18, 2026) already had a working
+model, a database view and an API contract. The cheapest correct move was to keep all of that and change only the
+infrastructure around it.</p>
+<table>
+  <tr><th>Piece</th><th>pipeline-db-ml (EC2)</th><th>databricks-genre-model</th></tr>
+  <tr><td>The view</td><td><code>vw_cliente_genero</code> in Postgres</td><td>same SQL, names <code>workspace.chinook.*</code></td></tr>
+  <tr><td>Features, target</td><td><code>tipo_correo, pais, ciudad</code> → <code>genero</code></td><td>same</td></tr>
+  <tr><td>Pipeline</td><td><code>OneHotEncoder(handle_unknown="ignore")</code> → <code>LogisticRegression(max_iter=1000)</code></td><td>same</td></tr>
+  <tr><td>Measurement</td><td>20 % hold-out, <code>random_state=42</code>, no stratify</td><td>same</td></tr>
+  <tr><td>Email rule</td><td><code>PredictorRequest.extraer_tipo_correo</code></td><td>same function in <code>src/genre_model.py</code></td></tr>
+  <tr><td>Answer</td><td><code>genero</code> + <code>top_3</code> list</td><td><code>genero</code> + <code>top_1..3</code>, <code>p_1..3</code></td></tr>
+  <tr><td>Retraining</td><td>cron, every hour</td><td>scheduled job, every day at 03:00</td></tr>
+  <tr><td>Model storage</td><td><code>assets/modelo_entrenado.pkl</code></td><td>MLflow registry in Unity Catalog, alias <code>Champion</code></td></tr>
+  <tr><td>Serving</td><td>FastAPI on port 8000, open to the internet</td><td>Model Serving endpoint, token required</td></tr>
+</table>
+<p>Two things could <b>not</b> be kept:</p>
+<ul>
+  <li><b>The database connection.</b> On Free Edition, outbound internet is "restricted to a limited set of trusted
+  domains", so a job cannot open a connection to the Postgres on EC2 or to Supabase. The data has to live inside
+  Databricks (Step 1).</li>
+  <li><b>The nested <code>top_3</code> list.</b> A model in Unity Catalog needs a <i>signature</i> (a declared input
+  and output schema). Flat columns (<code>top_1</code>, <code>p_1</code>, ...) give a simple, clean signature; the
+  information is the same.</li>
+</ul>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+<h2>4. Step 1. The data: from the Postgres dump to CSVs to Delta tables</h2>
+
+<figure>
+<div style="display:flex; align-items:center; gap:6px; font-size:9.5pt; text-align:center;">
+  <div style="flex:1; border:1.4px solid #2563eb; background:#dbeafe; border-radius:7px; padding:8px 4px;"><b>01_chinook.sql</b><br><span style="color:#475569">Postgres dump<br>(pipeline-db-ml)</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #64748b; background:#f1f5f9; border-radius:7px; padding:8px 4px;"><b>chinook_to_csv.py</b><br><span style="color:#475569">local, stdlib only</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #64748b; background:#f1f5f9; border-radius:7px; padding:8px 4px;"><b>data/*.csv</b><br><span style="color:#475569">5 tables, committed</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #16a34a; background:#dcfce7; border-radius:7px; padding:8px 4px;"><b>load_chinook</b><br><span style="color:#475569">job task 1</span></div>
+  <div>▶</div>
+  <div style="flex:1.1; border:1.4px solid #d97706; background:#fef3c7; border-radius:7px; padding:8px 4px;"><b>Delta tables + view</b><br><span style="color:#475569">workspace.chinook.*</span></div>
+</div>
+<figcaption>Figure 2. How the Chinook data gets into Databricks without any database connection.</figcaption>
+</figure>
+
+<h3>4.1 Why CSVs, and why only five tables</h3>
+<div class="wwh">
+  <div><b>What.</b> <code>scripts/chinook_to_csv.py</code> reads the same dump the first assignment loaded into
+  Postgres and writes the five tables the view needs: <code>genre</code>, <code>track</code>,
+  <code>invoice_line</code>, <code>invoice</code> and <code>customer</code>. The CSVs are committed (they are small)
+  and travel to the workspace with the bundle.</div>
+  <div><b>Why.</b> The job cannot reach any outside database (Free Edition limitation). Parsing the dump needs no
+  server and no download, and it guarantees the data is byte-for-byte the data of the first assignment.</div>
+</div>
+<p>The dump writes one row per line, with SQL Server style <code>N'...'</code> strings and bare <code>NULL</code>s:</p>
+<div class="file">pipeline-db-ml/db/init/01_chinook.sql (lines 222 to 224 and 4405)</div>
+<pre>INSERT INTO genre (genre_id, name) VALUES
+    (1, N'Rock'),
+    (2, N'Jazz'),
+...
+    (2, N'Leonie', N'Köhler', NULL, N'Theodor-Heuss-Straße 34', N'Stuttgart', NULL, N'Germany', N'70174', N'+49 0711 2842222', NULL, N'leonekohler@surfeu.de', 5),</pre>
+<p>The script drops the <code>N</code> prefix and marks <code>NULL</code> only <i>outside</i> quoted strings, then
+lets Python's <code>csv</code> module (with <code>'</code> as the quote character) split the values. The full parser is
+in the repository; its self-test checks the counts and a few tricky values:</p>
+<div class="check"><b>How to check.</b>
+<pre style="margin-top:6px;">$ python scripts/chinook_to_csv.py --self-test
+genre            25  ok
+track          3503  ok
+invoice_line   2240  ok
+invoice         412  ok
+customer         59  ok
+customer 1 email: ok
+customer 1 first_name: ok
+customer 2 company is NULL: ok
+track 1 name: ok
+track 2001 name (escaped quote): ok
+N and NULL inside strings untouched: ok
+csv round trip: ok
+self-test passed</pre></div>
+
+<h3>4.2 Task 1: CSV to Delta tables, then the view</h3>
+<div class="file">src/load_chinook.py (main)</div>
+<pre>def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", required=True)
+    args = ap.parse_args()
+
+    spark = SparkSession.builder.getOrCreate()
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
+
+    for table in TABLES:
+        path = f"{args.data_dir.rstrip('/')}/{table}.csv"
+        raw, how = read_csv(spark, path)
+        df = typed(table, raw)
+        (df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+           .saveAsTable(f"{CATALOG}.{SCHEMA}.{table}"))
+        n = spark.table(f"{CATALOG}.{SCHEMA}.{table}").count()
+        print(f"{CATALOG}.{SCHEMA}.{table}: {n} rows ({how})")
+
+    spark.sql(view_sql(args.data_dir))
+    rows = spark.table(VIEW).count()
+    print(f"{VIEW}: {rows} rows (expected 2240)")
+    if rows == 0:
+        raise SystemExit("the view is empty")</pre>
+<ul>
+  <li><b>Types.</b> CSV has no types. A <code>CASTS</code> table (full file in the appendix) gives each id its
+  <code>int</code>, prices their <code>decimal(10,2)</code>, and the invoice date (<code>2021/1/1</code> in the dump)
+  a timestamp, as in the Postgres <code>CREATE TABLE</code>s.</li>
+  <li><b>Overwrite.</b> Every run rewrites the tables (<code>mode("overwrite")</code>), so a run is always reproducible
+  from the files in the bundle.</li>
+  <li><b>The schema is created by the task</b> (<code>CREATE SCHEMA IF NOT EXISTS workspace.chinook</code>), not
+  declared in the bundle; Step 2 explains why.</li>
+</ul>
+
+<h3>4.3 The view, unchanged</h3>
+<div class="file">sql/vw_cliente_genero.sql</div>
+<pre>-- Vista para el modelo predictivo: 4 campos
+--   tipo_correo : proveedor del correo (texto entre '@' y el primer '.'): gmail, yahoo, hotmail, embraer...
+--   pais        : país del cliente
+--   ciudad      : ciudad del cliente
+--   genero      : género musical de cada track comprado por el cliente
+-- Una fila por track comprado: customer -&gt; invoice -&gt; invoice_line -&gt; track -&gt; genre
+-- Misma vista que pipeline-db-ml/db/view.sql, con nombres de tres niveles de Unity Catalog.
+
+CREATE OR REPLACE VIEW workspace.chinook.vw_cliente_genero AS
+SELECT
+    lower(split_part(split_part(c.email, '@', 2), '.', 1)) AS tipo_correo,
+    c.country AS pais,
+    c.city    AS ciudad,
+    g.name    AS genero
+FROM workspace.chinook.customer     c
+JOIN workspace.chinook.invoice      i  ON i.customer_id = c.customer_id
+JOIN workspace.chinook.invoice_line il ON il.invoice_id = i.invoice_id
+JOIN workspace.chinook.track        t  ON t.track_id    = il.track_id
+JOIN workspace.chinook.genre        g  ON g.genre_id    = t.genre_id;</pre>
+<p>Databricks SQL has <code>split_part</code> with the same meaning as in Postgres, so the SQL is the same as in the
+first assignment; only the table names gained the <code>workspace.chinook.</code> prefix (and the
+<code>\c chinook</code> psql command disappeared). The task reads this file from the bundle and runs it.</p>
+<div class="check"><b>How to check.</b> The task's output in the first run (run 278214313505025):
+<pre style="margin-top:6px;">workspace.chinook.genre: 25 rows (spark.read)
+workspace.chinook.track: 3503 rows (spark.read)
+workspace.chinook.invoice_line: 2240 rows (spark.read)
+workspace.chinook.invoice: 412 rows (spark.read)
+workspace.chinook.customer: 59 rows (spark.read)
+view SQL read from /Workspace/Users/0188554@up.edu.mx/.bundle/genre_model/dev/files/sql/vw_cliente_genero.sql
+workspace.chinook.vw_cliente_genero: 2240 rows (expected 2240)</pre>
+Same counts as the dump, and the same 2 240 view rows as in Postgres. In the workspace you can also open
+<b>SQL Editor</b> and run <code>SELECT * FROM workspace.chinook.vw_cliente_genero LIMIT 5</code>.</div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section>
+<h2>5. Step 2. The bundle and the Databricks CLI</h2>
+<h3>5.1 Install the CLI and log in</h3>
+<pre># Windows (winget)
+winget install Databricks.DatabricksCLI
+databricks --version
+Databricks CLI v1.20.0
+
+# browser login (OAuth): no token is typed anywhere
+databricks auth login --host https://dbc-c19856c3-faa2.cloud.databricks.com
+databricks current-user me</pre>
+<div class="wwh">
+  <div><b>What.</b> <code>databricks auth login</code> opens the browser on the workspace's sign-in page. After you sign
+  in, the browser shows a page saying you are authenticated and can close the tab; the CLI stores an OAuth session in
+  its local cache.</div>
+  <div><b>Why.</b> With OAuth there is no long-lived secret to copy or paste: the CLI, and any Python program that uses
+  <code>databricks-sdk</code>, reuse that session. The personal access token is created only for the professor
+  (Step 7).</div>
+  <div><b>How to check.</b> <code>databricks current-user me</code> prints your user
+  (<code>0188554@up.edu.mx</code> here).</div>
+</div>
+
+<h3>5.2 The bundle files</h3>
+<div class="file">databricks.yml</div>
+<pre># Bundle: daily training job for the music-genre model and its serving endpoint.
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+#   databricks bundle run      -t dev genre_model_train
+# Credentials come from the Databricks CLI login (databricks auth login); nothing secret is stored in this repo.
+# The workspace host is public and is set per target below.
+bundle:
+  name: genre_model
+
+include:
+  - resources/*.yml
+
+# The schema workspace.chinook is created by src/load_chinook.py (CREATE SCHEMA IF NOT EXISTS), not as a
+# bundle resource: in development mode a bundle schema would be renamed dev_&lt;user&gt;_chinook.
+
+sync:
+  include:
+    - data/*.csv
+    - sql/*.sql
+
+targets:
+  dev:
+    # No 'mode: development': that mode pauses every schedule and prefixes resource names, and the
+    # assignment needs the daily run active under the plain job name.
+    default: true
+    workspace:
+      host: https://dbc-c19856c3-faa2.cloud.databricks.com</pre>
+<div class="file">resources/genre_model_train.job.yml</div>
+<pre># Daily job: load Chinook into Delta, train the genre model, publish it on the serving endpoint, smoke test.
+# Serverless only (Databricks Free Edition): no clusters, Python tasks with a job-level environment.
+resources:
+  jobs:
+    genre_model_train:
+      name: genre_model_train
+      max_concurrent_runs: 1
+      email_notifications: {}
+
+      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"   # every day at 03:00 (Quartz: seconds first)
+        timezone_id: America/Mexico_City
+        pause_status: UNPAUSED
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - scikit-learn==1.6.1
+              - mlflow&gt;=2.15,&lt;4
+              - pandas&gt;=1.5,&lt;3
+              - databricks-sdk&gt;=0.40
+
+      tasks:
+        - task_key: load_chinook
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/load_chinook.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+
+        - task_key: train_model
+          depends_on:
+            - task_key: load_chinook
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/train_model.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+              - --experiment
+              - /Users/${workspace.current_user.userName}/genre_model_train
+
+        - task_key: deploy_endpoint
+          depends_on:
+            - task_key: train_model
+          environment_key: default
+          timeout_seconds: 3600
+          spark_python_task:
+            python_file: ../src/deploy_endpoint.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+
+        - task_key: smoke_test
+          depends_on:
+            - task_key: deploy_endpoint
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/smoke_test.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data</pre>
+<ul>
+  <li><b><code>sync.include</code></b> makes the CSVs and the SQL file part of what is uploaded, next to the code.</li>
+  <li><b><code>${workspace.file_path}</code></b> is resolved at deploy time to the folder where the bundle's files land,
+  so the tasks receive the real path of <code>data/</code> as a parameter.</li>
+  <li><b><code>environments</code></b> is how a serverless Python task gets its libraries. scikit-learn is pinned to
+  1.6.1, the version of the first assignment.</li>
+  <li><b><code>timeout_seconds: 3600</code></b> on the endpoint task, because creating an endpoint takes minutes.</li>
+</ul>
+
+<h3>5.3 Validate and deploy</h3>
+<pre>$ databricks bundle validate -t dev
+Name: genre_model
+Target: dev
+Workspace:
+  Host: https://dbc-c19856c3-faa2.cloud.databricks.com
+  User: 0188554@up.edu.mx
+  Path: /Workspace/Users/0188554@up.edu.mx/.bundle/genre_model/dev
+
+Validation OK!
+
+$ databricks bundle deploy -t dev</pre>
+<p>The deploy uploaded the bundle (21 files: code, CSVs, SQL, YAML) to
+<code>/Workspace/Users/0188554@up.edu.mx/.bundle/genre_model/dev</code> and created the job
+<code>genre_model_train</code> (id <code>740463899927346</code>):
+<a href="https://dbc-c19856c3-faa2.cloud.databricks.com/jobs/740463899927346?o=7474649054775928">https://dbc-c19856c3-faa2.cloud.databricks.com/jobs/740463899927346?o=7474649054775928</a>.</p>
+
+<div class="trap"><b>The development-mode trap.</b><br>
+Bundle templates put <code>mode: development</code> on the <code>dev</code> target. That mode is meant for personal
+experiments: it <b>pauses every schedule</b> and prefixes resource names with <code>[dev &lt;user&gt;]</code> (and
+schemas with <code>dev_&lt;user&gt;_</code>). The assignment needs the daily training <i>active</i> under a plain name,
+so the target has no <code>mode</code> at all (second commit of the repository: "drop development mode so the daily
+schedule stays active"), and the schema is created by the load task instead of being a bundle resource.</div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section>
+<h2>6. Step 3. Training and registering the model</h2>
+<p>Task 2 is <code>src/train_model.py</code>. It is the first assignment's <code>TrainModel.py</code> with the
+Postgres read replaced by a Spark read and the <code>joblib.dump</code> replaced by an MLflow registration.</p>
+
+<h3>6.1 Read the view, split, measure</h3>
+<div class="file">src/train_model.py</div>
+<pre>    spark = SparkSession.builder.getOrCreate()
+    df = spark.table(VIEW).select(*FEATURES, TARGET).toPandas()
+    print(f"Filas recuperadas: {len(df)}")
+    if df.empty:
+        raise SystemExit(f"{VIEW} is empty")
+    print(df.head(3).to_string(index=False))
+    print(f"Géneros distintos: {df[TARGET].nunique()}")
+
+    X = df[FEATURES]
+    y = df[TARGET]
+    # Sin stratify: hay géneros con una sola fila y stratify lanzaría error.
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    def nuevo_pipeline():
+        return Pipeline([
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+            ("clf", LogisticRegression(max_iter=1000)),
+        ])
+
+    mlflow.set_tracking_uri("databricks")
+    mlflow.set_registry_uri("databricks-uc")
+    if args.experiment:
+        mlflow.set_experiment(args.experiment)
+
+    with mlflow.start_run(run_name="genre_model_train") as run:
+        model = nuevo_pipeline()
+        model.fit(x_train, y_train)
+        y_pred = model.predict(x_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, zero_division=0)
+        print(f"Accuracy (hold-out 20%): {accuracy:.3f}")
+        print(report)
+        mlflow.log_params({"features": ",".join(FEATURES), "test_size": 0.2, "random_state": 42,
+                           "max_iter": 1000, "rows": len(df), "classes": int(y.nunique())})
+        mlflow.log_metric("accuracy", accuracy)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "classification_report.txt")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(f"Accuracy (hold-out 20%): {accuracy:.4f}\n\n{report}")
+            mlflow.log_artifact(path)</pre>
+<ul>
+  <li><code>spark.table(VIEW)...toPandas()</code>: 2 240 rows and 3 columns fit easily in memory, so the training
+  itself is plain scikit-learn, exactly as before.</li>
+  <li><code>set_registry_uri("databricks-uc")</code> sends model registrations to Unity Catalog
+  (<a href="https://docs.databricks.com/aws/en/machine-learning/manage-model-lifecycle/">manage-model-lifecycle</a>).</li>
+  <li>Inside the MLflow run we log the parameters, the metric <code>accuracy</code> and the classification report as a
+  file, so every daily run leaves a comparable record in the experiment
+  <code>/Users/0188554@up.edu.mx/genre_model_train</code>.</li>
+</ul>
+
+<h3>6.2 The wrapper: same contract as the old API</h3>
+<div class="file">src/genre_model.py</div>
+<pre>def extraer_tipo_correo(valor) -&gt; str:
+    """Same rule as the view vw_cliente_genero (and PredictorRequest in pipeline-db-ml):
+    text between '@' and the first '.', lower case. Accepts "gmail" or "ana@yahoo.com.br"."""
+    valor = str(valor).strip().lower()
+    if "@" in valor:
+        valor = valor.split("@", 1)[1]
+    return valor.split(".")[0]
+
+
+def preparar_entrada(model_input) -&gt; pd.DataFrame:
+    if not isinstance(model_input, pd.DataFrame):
+        model_input = pd.DataFrame(model_input)
+    faltan = [c for c in FEATURES if c not in model_input.columns]
+    if faltan:
+        raise ValueError(f"faltan columnas: {faltan}; se esperan {FEATURES}")
+    X = model_input[FEATURES].copy()  # by name: dataframe_records does not guarantee column order
+    X["tipo_correo"] = X["tipo_correo"].map(extraer_tipo_correo)
+    X["pais"] = X["pais"].astype(str).str.strip()
+    X["ciudad"] = X["ciudad"].astype(str).str.strip()
+    return X
+
+
+class GenreModel(_Base):
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+
+    def predict(self, context, model_input, params=None):
+        X = preparar_entrada(model_input)
+        generos = self.pipeline.predict(X)
+        probas = self.pipeline.predict_proba(X)
+        clases = [str(c) for c in self.pipeline.classes_]
+        filas = []
+        for genero, fila in zip(generos, probas):
+            orden = sorted(range(len(clases)), key=lambda k: fila[k], reverse=True)[:3]
+            salida = {"genero": str(genero)}
+            for pos in range(3):
+                if pos &lt; len(orden):
+                    salida[f"top_{pos + 1}"] = clases[orden[pos]]
+                    salida[f"p_{pos + 1}"] = round(float(fila[orden[pos]]), 4)
+                else:
+                    salida[f"top_{pos + 1}"] = ""
+                    salida[f"p_{pos + 1}"] = 0.0
+            filas.append(salida)
+        return pd.DataFrame(filas, columns=OUTPUT_COLUMNS)</pre>
+<ul>
+  <li><code>extraer_tipo_correo</code> is the same rule as the view: the endpoint accepts <code>"yahoo"</code> or a full
+  address like <code>"ana@yahoo.com.br"</code>, and the model always sees <code>yahoo</code>.</li>
+  <li>Columns are selected <b>by name</b>. The docs warn that <code>dataframe_records</code> does not guarantee column
+  order (<a href="https://docs.databricks.com/aws/en/machine-learning/model-serving/score-custom-model-endpoints">score-custom-model-endpoints</a>);
+  selecting by name makes the order irrelevant.</li>
+  <li><code>predict_proba</code> gives one probability per genre; sorting gives the top 3, rounded to 4 decimals.</li>
+</ul>
+
+<h3>6.3 Log, register, move the alias</h3>
+<div class="file">src/train_model.py</div>
+<pre>        # Reentrenar con todos los datos
+        model = nuevo_pipeline()
+        model.fit(X, y)
+
+        input_example = pd.DataFrame([
+            {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+            {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+            {"tipo_correo": "hotmail", "pais": "United Kingdom", "ciudad": "London"},
+        ])
+        pip_requirements = [
+            f"mlflow=={mlflow.__version__}",
+            f"scikit-learn=={sklearn.__version__}",
+            f"pandas=={pd.__version__}",
+            f"numpy=={np.__version__}",
+        ]
+        try:
+            import cloudpickle
+            pip_requirements.append(f"cloudpickle=={cloudpickle.__version__}")
+        except ImportError:
+            pass
+
+        log_kwargs = dict(
+            python_model=GenreModel(model),
+            input_example=input_example,
+            code_paths=[os.path.join(here, "genre_model.py")],
+            pip_requirements=pip_requirements,
+            registered_model_name=MODEL_NAME,
+        )
+        if int(mlflow.__version__.split(".")[0]) &gt;= 3:
+            info = mlflow.pyfunc.log_model(name="model", **log_kwargs)
+        else:
+            info = mlflow.pyfunc.log_model(artifact_path="model", **log_kwargs)
+
+    client = MlflowClient(registry_uri="databricks-uc")
+    version = getattr(info, "registered_model_version", None)
+    if version is None:
+        versions = [mv for mv in client.search_model_versions(f"name='{MODEL_NAME}'")
+                    if mv.run_id == run.info.run_id]
+        if not versions:
+            raise SystemExit(f"no version of {MODEL_NAME} found for run {run.info.run_id}")
+        version = max(int(mv.version) for mv in versions)
+    version = str(version)
+    client.set_registered_model_alias(MODEL_NAME, ALIAS, version)
+    print(f"Registered {MODEL_NAME} version {version}; alias {ALIAS} -&gt; {version}; run {run.info.run_id}")</pre>
+<ul>
+  <li><b>Signature.</b> A model version in Unity Catalog must have a signature. Passing <code>input_example</code> lets
+  MLflow infer it by calling <code>predict</code> on the example: three string columns in, seven columns out
+  (<code>genero</code>, <code>top_1</code>, <code>top_2</code>, <code>top_3</code> strings and <code>p_1</code> to
+  <code>p_3</code> numbers). The log shows "Inferring model signature from input example".</li>
+  <li><b><code>code_paths</code></b> ships <code>genre_model.py</code> with the model, so the serving container can import
+  the class.</li>
+  <li><b><code>pip_requirements</code></b> pins the exact versions the job trained with, so serving unpickles the
+  pipeline with the same scikit-learn.</li>
+  <li><b>Alias.</b> <code>set_registered_model_alias(..., "Champion", version)</code> moves the label to the new version.
+  Task 3 reads the alias, not a hard-coded number.</li>
+</ul>
+<div class="check"><b>How to check.</b> The task's output in the first run (excerpt):
+<pre style="margin-top:6px;">Filas recuperadas: 2240
+tipo_correo   pais      ciudad genero
+      yahoo  Italy        Rome   Rock
+       shaw Canada Yellowknife   Rock
+        uol Brazil    Brasília   Rock
+
+Accuracy (hold-out 20%): 0.393
+                    precision    recall  f1-score   support
+...
+             Latin       0.40      0.21      0.27        92
+             Metal       0.39      0.39      0.39        46
+              Rock       0.39      0.88      0.54       158
+...
+          accuracy                           0.39       448
+
+2026/10/10 04:23:35 INFO mlflow.pyfunc: Inferring model signature from input example
+Successfully registered model 'workspace.chinook.genero_cliente'.
+Created version '1' of model 'workspace.chinook.genero_cliente': https://dbc-c19856c3-faa2.cloud.databricks.com/explore/data/models/workspace/chinook/genero_cliente/version/1?o=7474649054775928
+Registered workspace.chinook.genero_cliente version 1; alias Champion -&gt; 1; run 1d38d577f7e943659dc8a9eea2bef1c0
+task value model_version set</pre>
+The model page:
+<a href="https://dbc-c19856c3-faa2.cloud.databricks.com/explore/data/models/workspace/chinook/genero_cliente/version/1?o=7474649054775928">Catalog → workspace → chinook → genero_cliente → version 1</a>;
+the experiment: <a href="https://dbc-c19856c3-faa2.cloud.databricks.com/ml/experiments/4227171573263053">experiment 4227171573263053</a>.</div>
+<p><b>About the accuracy.</b> The first assignment printed 0.353 on EC2; here it is 0.393 (0.39). Same data, same
+pipeline, same <code>random_state</code>. The difference is the <b>row order</b>: Postgres and Spark return the view's
+rows in different orders, and <code>train_test_split</code> shuffles by position, so the 448 test rows are a different
+sample. For reference, always answering "Rock" would be right on 37 % of the rows; the model gets there and also learns
+the exceptions (Berlin → Metal).</p>
+</section>
+
+<!-- ============================================================ 7 -->
+<section>
+<h2>7. Step 4. The serving endpoint</h2>
+<p>Task 3, <code>src/deploy_endpoint.py</code>, publishes the <code>Champion</code> version on the endpoint
+<code>genero-cliente</code>. Authentication is the job's own identity (<code>WorkspaceClient()</code> with no
+arguments), so the code holds no secret.</p>
+<div class="file">src/deploy_endpoint.py (create or update)</div>
+<pre>    entity = ServedEntityInput(
+        entity_name=MODEL_NAME,
+        entity_version=version,
+        workload_size="Small",
+        scale_to_zero_enabled=True,
+    )
+
+    try:
+        existing = w.serving_endpoints.get(ENDPOINT)
+    except (NotFound, ResourceDoesNotExist):
+        existing = None
+
+    if existing is None:
+        print(f"creating endpoint {ENDPOINT} with version {version} (waiting up to {TIMEOUT})")
+        endpoint = w.serving_endpoints.create_and_wait(
+            name=ENDPOINT,
+            config=EndpointCoreConfigInput(name=ENDPOINT, served_entities=[entity]),
+            timeout=TIMEOUT,
+        )
+    else:
+        served = [(e.entity_name, str(e.entity_version))
+                  for e in ((existing.config.served_entities if existing.config else None) or [])]
+        updating = existing.state and existing.state.config_update and \
+            existing.state.config_update.value == "IN_PROGRESS"
+        if updating:
+            print(f"endpoint {ENDPOINT} is updating; waiting for it first")
+            existing = w.serving_endpoints.wait_get_serving_endpoint_not_updating(ENDPOINT, timeout=TIMEOUT)
+            served = [(e.entity_name, str(e.entity_version))
+                      for e in ((existing.config.served_entities if existing.config else None) or [])]
+        if served == [(MODEL_NAME, version)]:
+            print(f"endpoint {ENDPOINT} already serves version {version}; no update")
+            endpoint = existing
+        else:
+            print(f"updating endpoint {ENDPOINT}: {served} -&gt; {MODEL_NAME} v{version} (waiting up to {TIMEOUT})")
+            endpoint = w.serving_endpoints.update_config_and_wait(
+                name=ENDPOINT,
+                served_entities=[entity],
+                timeout=TIMEOUT,
+            )</pre>
+<div class="wwh">
+  <div><b>Create vs update.</b> The first run finds no endpoint and creates it with one served entity: model
+  <code>workspace.chinook.genero_cliente</code>, the alias's version, size <code>Small</code>, scale to zero on. Every
+  later run finds it and calls <code>update_config</code> with the new version. If the endpoint already serves that
+  version (for example when a run is repeated after a failure in task 4), it does nothing.</div>
+  <div><b>No downtime.</b> During an update the old configuration keeps serving until the new one is ready
+  (<a href="https://docs.databricks.com/aws/en/machine-learning/model-serving/create-manage-serving-endpoints">create-manage-serving-endpoints</a>).
+  The <code>_and_wait</code> calls block until that happens, up to 30 minutes.</div>
+  <div><b>Why the job owns the endpoint.</b> A bundle can also declare an endpoint as a resource, but its model version
+  would then be fixed in YAML and every deploy would push it back, fighting the job's daily update. Letting the job
+  create or update the endpoint means one run trains <i>and</i> publishes, with no manual step in the UI.</div>
+</div>
+<div class="check"><b>How to check.</b> The task's output in the first run:
+<pre style="margin-top:6px;">workspace.chinook.genero_cliente@Champion = version 1
+creating endpoint genero-cliente with version 1 (waiting up to 0:30:00)
+endpoint genero-cliente: ready=READY config_update=NOT_UPDATING
+  serves workspace.chinook.genero_cliente version 1
+invocation URL: https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations</pre>
+At any time, from your machine:
+<pre>databricks serving-endpoints get genero-cliente</pre>
+The fields to read are <code>state.ready</code> (<code>READY</code>), <code>state.config_update</code>
+(<code>NOT_UPDATING</code>, or <code>IN_PROGRESS</code> while a new version is being prepared) and
+<code>config.served_entities[].entity_version</code>. In the UI: <b>Serving</b> → <code>genero-cliente</code>.</div>
+<p>The whole first run took about 12 minutes (22:20:54 to 22:32:38), almost all of it the endpoint creation:
+Databricks builds a container image with the model's dependencies the first time.</p>
+</section>
+
+<!-- ============================================================ 8 -->
+<section>
+<h2>8. Step 5. The smoke test and querying from outside</h2>
+<h3>8.1 Task 4: the job tests its own endpoint</h3>
+<div class="file">src/smoke_test.py</div>
+<pre>ROWS = [
+    {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+    {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+    {"tipo_correo": "ana@yahoo.com.br", "pais": "Brazil", "ciudad": "São Paulo"},
+]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", default=None)  # accepted for symmetry with the other tasks
+    ap.parse_args()
+
+    from databricks.sdk import WorkspaceClient
+
+    w = WorkspaceClient()
+    response = w.serving_endpoints.query(name=ENDPOINT, dataframe_records=ROWS)
+    predictions = response.predictions or []
+    for row, pred in zip(ROWS, predictions):
+        print(json.dumps({"entrada": row, "prediccion": pred}, ensure_ascii=False))</pre>
+<p>The job queries the endpoint it just published with three known rows and fails if any prediction is missing. A green
+run therefore means "the model was trained <b>and</b> the endpoint answers", not just "the script finished". The third
+row checks the email normalisation: a full address must behave like its provider.</p>
+<pre>{"entrada": {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"}, "prediccion": {"genero": "Metal", "top_1": "Metal", "p_1": 0.4076, "top_2": "Rock", "p_2": 0.3364, "top_3": "Alternative &amp; Punk", "p_3": 0.0752}}
+{"entrada": {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"}, "prediccion": {"genero": "Rock", "top_1": "Rock", "p_1": 0.515, "top_2": "Latin", "p_2": 0.2183, "top_3": "Alternative &amp; Punk", "p_3": 0.0942}}
+{"entrada": {"tipo_correo": "ana@yahoo.com.br", "pais": "Brazil", "ciudad": "São Paulo"}, "prediccion": {"genero": "Rock", "top_1": "Rock", "p_1": 0.398, "top_2": "Latin", "p_2": 0.2572, "top_3": "Alternative &amp; Punk", "p_3": 0.1059}}
+yahoo/Germany/Berlin -&gt; Metal (Metal, as the previous model)
+smoke test passed</pre>
+
+<h3>8.2 The request and the answer</h3>
+<p>URL: <code>https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations</code>,
+method <code>POST</code>, header <code>Authorization: Bearer &lt;TOKEN&gt;</code>, body
+<code>{"dataframe_records": [...]}</code>, answer <code>{"predictions": [...]}</code>
+(<a href="https://docs.databricks.com/aws/en/machine-learning/model-serving/score-custom-model-endpoints">score-custom-model-endpoints</a>).</p>
+<div class="file">curl (bash)</div>
+<pre>curl -X POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations \
+  -H "Authorization: Bearer &lt;TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"dataframe_records": [{"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"}]}'</pre>
+<pre>{
+  "predictions": [
+    {
+      "genero": "Metal",
+      "top_1": "Metal",
+      "p_1": 0.4076,
+      "top_2": "Rock",
+      "p_2": 0.3364,
+      "top_3": "Alternative &amp; Punk",
+      "p_3": 0.0752
+    }
+  ]
+}</pre>
+<p>Berlin is the same good example as in the first assignment: the answer is <i>not</i> the majority class, and the
+probabilities are identical to the EC2 API's (0.4076, 0.3364, 0.0752), because the final model is trained on all rows
+and row order does not change a full-data fit.</p>
+
+<h3>8.3 From Python</h3>
+<p>The minimal version, as in the README: the token comes from the environment variable <code>DATABRICKS_TOKEN</code>,
+never from the code.</p>
+<div class="file">README.md (Python example)</div>
+<pre>import os
+import requests
+
+url = "https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations"
+headers = {
+    "Authorization": f"Bearer {os.environ['DATABRICKS_TOKEN']}",
+    "Content-Type": "application/json",
+}
+body = {"dataframe_records": [
+    {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+    {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+]}
+
+r = requests.post(url, headers=headers, json=body, timeout=120)
+r.raise_for_status()
+for p in r.json()["predictions"]:
+    print(p["genero"], p["top_1"], p["p_1"], p["top_2"], p["p_2"], p["top_3"], p["p_3"])</pre>
+<pre>Metal Metal 0.4076 Rock 0.3364 Alternative &amp; Punk 0.0752
+Rock Rock 0.515 Latin 0.2183 Alternative &amp; Punk 0.0942</pre>
+<p>The repository also has a ready-made client, <code>scripts/query_endpoint.py</code>. Its only interesting part is how
+it chooses the credentials:</p>
+<div class="file">scripts/query_endpoint.py (authentication)</div>
+<pre>    token = os.environ.get("DATABRICKS_TOKEN")
+    if token:
+        host = os.environ.get("DATABRICKS_HOST")
+        if not host:
+            print("DATABRICKS_TOKEN is set but DATABRICKS_HOST is not", file=sys.stderr)
+            return 2
+        headers = {"Authorization": f"Bearer {token}"}
+        auth = "DATABRICKS_TOKEN"
+    else:
+        try:
+            from databricks.sdk import WorkspaceClient
+        except ImportError:
+            print("no DATABRICKS_TOKEN and databricks-sdk is not installed (pip install databricks-sdk)",
+                  file=sys.stderr)
+            return 2
+        try:
+            w = WorkspaceClient(profile=args.profile) if args.profile else WorkspaceClient()
+            host = w.config.host
+            headers = dict(w.config.authenticate())
+        except Exception as e:  # noqa: BLE001 - report the auth failure plainly
+            print(f"databricks-sdk auth failed ({type(e).__name__}): {e}", file=sys.stderr)
+            print("set DATABRICKS_HOST and DATABRICKS_TOKEN, run `databricks auth login`,"
+                  " or pass --profile", file=sys.stderr)
+            return 2
+        source = f"profile {args.profile}" if args.profile else "default auth"
+        auth = f"databricks-sdk ({source}, {w.config.auth_type})"</pre>
+<p>With <code>DATABRICKS_TOKEN</code> set it sends the <code>Bearer</code> header; without it, <code>databricks-sdk</code>
+authenticates (a named CLI profile with <code>--profile</code>, or the session of <code>databricks auth login</code> plus
+<code>DATABRICKS_HOST</code>; for the latter the <code>databricks</code> executable must be on the <code>PATH</code>). Real
+run on October 9, 2026, with no token set:</p>
+<pre>$ export DATABRICKS_HOST=https://dbc-c19856c3-faa2.cloud.databricks.com
+$ .venv/Scripts/python scripts/query_endpoint.py
+auth: databricks-sdk (default auth, databricks-cli)
+POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations -&gt; HTTP 200
+{
+  "predictions": [
+    {
+      "genero": "Metal",
+      "top_1": "Metal",
+      "p_1": 0.4076,
+      "top_2": "Rock",
+      "p_2": 0.3364,
+      "top_3": "Alternative &amp; Punk",
+      "p_3": 0.0752
+    }
+  ]
+}</pre>
+
+<h3>8.4 From the Databricks CLI</h3>
+<pre>$ databricks serving-endpoints query genero-cliente --json '{"dataframe_records": [{"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"}]}'
+{
+  "predictions": [
+    {
+      "genero": "Rock",
+      "p_1": 0.515,
+      "p_2": 0.2183,
+      "p_3": 0.0942,
+      "top_1": "Rock",
+      "top_2": "Latin",
+      "top_3": "Alternative \u0026 Punk"
+    }
+  ]
+}</pre>
+<p>The CLI prints keys in alphabetical order and escapes <code>&amp;</code> as <code>&#92;u0026</code>; the values are the
+same. The docs recommend <code>dataframe_split</code> when column order matters; our wrapper selects by name, so both
+formats work:</p>
+<pre>$ databricks serving-endpoints query genero-cliente --json '{"dataframe_split": {"columns": ["tipo_correo", "pais", "ciudad"], "data": [["yahoo", "Germany", "Berlin"], ["hotmail", "United Kingdom", "London"]]}}'
+{
+  "predictions": [
+    {
+      "genero": "Metal",
+      "p_1": 0.4076,
+      "p_2": 0.3364,
+      "p_3": 0.0752,
+      "top_1": "Metal",
+      "top_2": "Rock",
+      "top_3": "Alternative \u0026 Punk"
+    },
+    {
+      "genero": "Latin",
+      "p_1": 0.3595,
+      "p_2": 0.2372,
+      "p_3": 0.1856,
+      "top_1": "Latin",
+      "top_2": "Rock",
+      "top_3": "Metal"
+    }
+  ]
+}</pre>
+</section>
+
+<!-- ============================================================ 9 -->
+<section>
+<h2>9. Step 6. The schedule and what each run does</h2>
+<div class="file">resources/genre_model_train.job.yml (schedule)</div>
+<pre>      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"   # every day at 03:00 (Quartz: seconds first)
+        timezone_id: America/Mexico_City
+        pause_status: UNPAUSED</pre>
+<table>
+  <tr><th>Field</th><th>second</th><th>minute</th><th>hour</th><th>day of month</th><th>month</th><th>day of week</th></tr>
+  <tr><td>Value</td><td><code>0</code></td><td><code>0</code></td><td><code>3</code></td><td><code>*</code></td><td><code>*</code></td><td><code>?</code></td></tr>
+  <tr><td>Meaning</td><td>at :00</td><td>at :00</td><td>03 h</td><td>every day</td><td>every month</td><td>no specific day</td></tr>
+</table>
+<div class="wwh">
+  <div><b>Why daily and not hourly.</b> The Free Edition fair-use quota switches compute off for the rest of the day
+  when it is exceeded. Chinook never changes, so even a daily retrain is generous; it demonstrates the periodic pipeline
+  the assignment asks for while keeping well inside the quota. The time zone is explicit
+  (<code>America/Mexico_City</code>), so 03:00 means 03:00 in Mexico City.</div>
+  <div><b>Why <code>UNPAUSED</code></b> is written out: it documents the intent and, together with the absence of
+  development mode, guarantees the schedule is live after a deploy
+  (<a href="https://docs.databricks.com/aws/en/dev-tools/bundles/examples">bundles/examples</a>).</div>
+</div>
+<div class="check"><b>How to check.</b>
+<pre style="margin-top:6px;">$ databricks jobs get 740463899927346 -o json      (excerpt)
+{
+  "job_id": 740463899927346,
+  "settings": {
+    "name": "genre_model_train",
+    "schedule": {
+      "pause_status": "UNPAUSED",
+      "quartz_cron_expression": "0 0 3 * * ?",
+      "timezone_id": "America/Mexico_City"
+    }
+  }
+}</pre></div>
+
+<h3>9.1 What every run does</h3>
+<figure>
+<svg viewBox="0 0 700 170" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#374151"/></marker></defs>
+  <line x1="10" y1="22" x2="690" y2="22" stroke="#374151" stroke-width="1.4" marker-end="url(#ar2)"/>
+  <text x="684" y="14" font-size="9" fill="#374151" text-anchor="end">time</text>
+  <rect x="10" y="36" width="70" height="26" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="45" y="53" text-anchor="middle" font-size="9.5">load</text>
+  <rect x="84" y="36" width="70" height="26" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="119" y="53" text-anchor="middle" font-size="9.5">train → vN</text>
+  <rect x="158" y="36" width="380" height="26" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="348" y="53" text-anchor="middle" font-size="9.5">deploy_endpoint: update_config to vN, wait until ready</text>
+  <rect x="542" y="36" width="90" height="26" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="587" y="53" text-anchor="middle" font-size="9.5">smoke_test</text>
+  <rect x="10" y="80" width="420" height="26" rx="5" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="220" y="97" text-anchor="middle" font-size="9.5">endpoint serves v(N−1), answers every request</text>
+  <rect x="434" y="80" width="256" height="26" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="562" y="97" text-anchor="middle" font-size="9.5" font-weight="700">endpoint serves vN</text>
+  <rect x="158" y="120" width="272" height="22" rx="5" fill="#fef3c7" stroke="#d97706" stroke-dasharray="4 3"/>
+  <text x="294" y="135" text-anchor="middle" font-size="9">vN container being built (pending config)</text>
+  <text x="432" y="160" text-anchor="middle" font-size="9" fill="#374151">switch: no gap</text>
+  <line x1="432" y1="150" x2="432" y2="108" stroke="#374151" stroke-dasharray="3 3"/>
+</svg>
+<figcaption>Figure 3. One run. Version N is registered in seconds; the endpoint keeps answering with the previous
+version while N is prepared, then switches.</figcaption>
+</figure>
+<p>Each run registers a new version N of <code>workspace.chinook.genero_cliente</code>, moves <code>Champion</code> to
+N, and updates the endpoint to N. The URL and the token never change, so the professor's example keeps working across
+retrains. This was visible while the second run (started by hand right after the first) was updating: the endpoint
+reported <code>ready: READY</code> and <code>config_update: IN_PROGRESS</code>, still serving version 1, with version 2
+listed as the pending configuration (<code>Container creation pending.</code>), and queries kept returning HTTP 200.</p>
+<p>Because the data does not change, version N predicts the same as version N−1. In a real store with new purchases
+every day, the same job would pick them up without any change to the code.</p>
+</section>
+
+<!-- ============================================================ 10 -->
+<section>
+<h2>10. Step 7. The token and the delivery to the professor</h2>
+<figure>
+<div style="display:flex; align-items:center; gap:6px; font-size:9.5pt; text-align:center;">
+  <div style="flex:1; border:1.4px solid #2563eb; background:#dbeafe; border-radius:7px; padding:8px 4px;"><b>Student</b><br><span style="color:#475569">generates the token<br>in the Databricks UI</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #64748b; background:#f1f5f9; border-radius:7px; padding:8px 4px;"><b>Course channel</b><br><span style="color:#475569">URL + token + example</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #374151; background:#ffffff; border-radius:7px; padding:8px 4px;"><b>Professor</b><br><span style="color:#475569">curl with<br>Bearer &lt;TOKEN&gt;</span></div>
+  <div>▶</div>
+  <div style="flex:1; border:1.4px solid #7c3aed; background:#ede9fe; border-radius:7px; padding:8px 4px;"><b>genero-cliente</b><br><span style="color:#475569">checks the token,<br>answers</span></div>
+</div>
+<figcaption>Figure 4. The token goes from the Databricks UI to the professor directly. It is never in the repository,
+in this document, or in any file under version control.</figcaption>
+</figure>
+<h3>10.1 How to generate it</h3>
+<ol>
+  <li>In the workspace, click your username (top right) → <b>Settings</b> → <b>Developer</b>.</li>
+  <li>Next to <b>Access tokens</b>, click <b>Manage</b> → <b>Generate new token</b>.</li>
+  <li>Comment (name): <code>profesor-bases-de-datos</code>. Lifetime: <code>60</code> days. If the dialog offers a
+  scope, choose "Other APIs" and limit it to serving endpoints.</li>
+  <li>Click <b>Generate</b> and copy the token <b>now</b>: it is shown only once.</li>
+  <li>Send it to the professor through the course channel together with the URL and the curl example.</li>
+</ol>
+<p class="src">Source: <a href="https://docs.databricks.com/aws/en/dev-tools/auth/pat">https://docs.databricks.com/aws/en/dev-tools/auth/pat</a> ("Save the token securely and don't share it").</p>
+<h3>10.2 What it grants</h3>
+<p>A personal access token acts as its owner. Unscoped, it can call any Databricks REST API the owner can, in this
+workspace only: that is why the lifetime is short, why a scope is used when the UI offers one, and why it is shared
+only with the professor. On this endpoint it is sent as <code>Authorization: Bearer &lt;TOKEN&gt;</code>; requests
+without a valid token are rejected. Personal access tokens work on standard endpoints like this one; route-optimized
+endpoints would require OAuth instead.</p>
+<h3>10.3 How to revoke it</h3>
+<p>Same page (<b>Settings</b> → <b>Developer</b> → <b>Access tokens</b> → <b>Manage</b>): revoke the token
+<code>profesor-bases-de-datos</code>. It also expires by itself after 60 days, and Databricks revokes any token unused
+for 90 days. Revoking it does not affect the job or the endpoint, which use their own identity.</p>
+<h3>10.4 Why it can never leak through the repository</h3>
+<div class="file">.gitignore (first lines)</div>
+<pre># secrets: the token lives only in your environment or the Databricks CLI profile
+.env
+.env.*
+*.pem</pre>
+<p>The code never reads a token from a file: the job uses its ambient identity, the local client reads
+<code>DATABRICKS_TOKEN</code> from the environment or uses the CLI's OAuth session, and every document shows the
+literal placeholder <code>&lt;TOKEN&gt;</code>.</p>
+</section>
+
+<!-- ============================================================ 11 -->
+<section>
+<h2>11. Operating it: runs, costs, scale to zero, tearing down</h2>
+<h3>11.1 Run it by hand and see the runs</h3>
+<pre># from the repository folder: start a run and stream its result
+databricks bundle run -t dev genre_model_train
+
+# list the runs of the job
+databricks jobs list-runs --job-id 740463899927346</pre>
+<p>In the UI: open the job's page and click <b>Run now</b>; the runs list on the same page shows each run with its
+duration, and opening one shows the output of each task (the excerpts in this document come from there). The first run:
+<a href="https://dbc-c19856c3-faa2.cloud.databricks.com/jobs/740463899927346/runs/278214313505025?o=7474649054775928">run 278214313505025</a>.</p>
+<h3>11.2 Costs and the Free Edition quota</h3>
+<ul>
+  <li>Free Edition has no bill. The limit is the <b>fair-use quota</b>: exceeding it switches compute off for the rest
+  of the day. One run a day of a few short tasks stays far below it.</li>
+  <li>The expensive part of a run is waiting for the endpoint to be built, not our own compute: training takes
+  seconds.</li>
+  <li>Free Edition allows a limited number of active serving endpoints (the number is not published) and no GPU; this
+  project uses one CPU endpoint of size <code>Small</code>.</li>
+  <li>Per-request limits of Model Serving (payload size, execution time) are listed in
+  <a href="https://docs.databricks.com/aws/en/machine-learning/model-serving/model-serving-limits">model-serving-limits</a>;
+  a request with a few rows is far below them.</li>
+</ul>
+<h3>11.3 Scale to zero</h3>
+<p>With no traffic, the endpoint releases its compute. The next request wakes it up and takes noticeably longer than
+the following ones; a client should use a generous timeout (the local client uses 120 seconds). If the professor's
+first call is slow, a second call answers at normal speed.</p>
+<h3>11.4 Tearing it down (described, not run)</h3>
+<pre># 1. remove what the bundle created: the job and the uploaded files
+databricks bundle destroy -t dev
+
+# 2. the endpoint was created by the job, not by the bundle, so delete it explicitly
+databricks serving-endpoints delete genero-cliente
+
+# 3. optional, in the SQL editor: tables, view and registered model live in the schema
+DROP SCHEMA workspace.chinook CASCADE;
+
+# 4. revoke the professor's token (Settings > Developer > Access tokens)</pre>
+<p>Order matters: destroying the bundle first stops the schedule, so no run recreates the endpoint after step 2. None
+of these steps were run; the project stays live for grading.</p>
+</section>
+
+<!-- ============================================================ 12 -->
+<section class="appendix">
+<h2>12. Appendix. Full source of the four task files and the wrapper</h2>
+<div class="file">src/load_chinook.py</div>
+<pre>"""Task 1: load the five Chinook CSVs into Delta tables and (re)create the view vw_cliente_genero.
+
+Reads &lt;data-dir&gt;/{genre,track,invoice_line,invoice,customer}.csv (bundle workspace files), writes
+workspace.chinook.&lt;table&gt; (overwrite) and runs sql/vw_cliente_genero.sql.
+"""
+import argparse
+import os
+
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+CATALOG = "workspace"
+SCHEMA = "chinook"
+VIEW = f"{CATALOG}.{SCHEMA}.vw_cliente_genero"
+
+# Column types from the CREATE TABLE statements of the Postgres dump; everything else stays string.
+CASTS = {
+    "genre": {"genre_id": "int"},
+    "track": {"track_id": "int", "album_id": "int", "media_type_id": "int", "genre_id": "int",
+              "milliseconds": "int", "bytes": "int", "unit_price": "decimal(10,2)"},
+    "invoice_line": {"invoice_line_id": "int", "invoice_id": "int", "track_id": "int",
+                     "unit_price": "decimal(10,2)", "quantity": "int"},
+    "invoice": {"invoice_id": "int", "customer_id": "int", "total": "decimal(10,2)"},
+    "customer": {"customer_id": "int", "support_rep_id": "int"},
+}
+TABLES = list(CASTS)
+
+VIEW_SQL_FALLBACK = f"""
+CREATE OR REPLACE VIEW {VIEW} AS
+SELECT
+    lower(split_part(split_part(c.email, '@', 2), '.', 1)) AS tipo_correo,
+    c.country AS pais,
+    c.city    AS ciudad,
+    g.name    AS genero
+FROM {CATALOG}.{SCHEMA}.customer     c
+JOIN {CATALOG}.{SCHEMA}.invoice      i  ON i.customer_id = c.customer_id
+JOIN {CATALOG}.{SCHEMA}.invoice_line il ON il.invoice_id = i.invoice_id
+JOIN {CATALOG}.{SCHEMA}.track        t  ON t.track_id    = il.track_id
+JOIN {CATALOG}.{SCHEMA}.genre        g  ON g.genre_id    = t.genre_id
+"""
+
+
+def read_csv(spark, path):
+    """spark.read first; if Spark cannot reach workspace files, read with pandas and convert."""
+    try:
+        df = (spark.read.option("header", "true").option("inferSchema", "false")
+              .option("quote", '"').option("escape", '"').option("encoding", "UTF-8")
+              .csv(path))
+        df.limit(1).collect()
+        return df, "spark.read"
+    except Exception as e:  # noqa: BLE001 - fall back on any read failure
+        print(f"spark.read failed for {path} ({type(e).__name__}: {str(e)[:200]}); using pandas")
+    import pandas as pd
+    pdf = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8")
+    pdf = pdf.astype(object).where(pdf != "", None)
+    schema = ", ".join(f"`{c}` string" for c in pdf.columns)
+    return spark.createDataFrame(pdf.values.tolist(), schema=schema), "pandas"
+
+
+def typed(table, df):
+    for col, typ in CASTS[table].items():
+        df = df.withColumn(col, F.col(col).cast(typ))
+    if table == "invoice":
+        # the dump writes dates as 2021/1/1
+        df = df.withColumn("invoice_date", F.to_timestamp(F.col("invoice_date"), "yyyy/M/d"))
+    return df
+
+
+def view_sql(data_dir):
+    """Read sql/vw_cliente_genero.sql next to the bundle's src/ and data/; inline copy as fallback."""
+    candidates = []
+    try:
+        candidates.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                       "sql", "vw_cliente_genero.sql"))
+    except NameError:  # __file__ is not always defined in a job's python task
+        pass
+    candidates.append(os.path.join(os.path.dirname(data_dir.rstrip("/")), "sql", "vw_cliente_genero.sql"))
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            print(f"view SQL read from {path}")
+            break
+        except OSError as e:
+            print(f"cannot read {path}: {e}")
+    else:
+        print("view SQL: using the inlined copy")
+        return VIEW_SQL_FALLBACK.strip()
+    lines = [ln for ln in text.splitlines() if not ln.strip().startswith("--")]
+    return "\n".join(lines).strip().rstrip(";").strip()
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", required=True)
+    args = ap.parse_args()
+
+    spark = SparkSession.builder.getOrCreate()
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
+
+    for table in TABLES:
+        path = f"{args.data_dir.rstrip('/')}/{table}.csv"
+        raw, how = read_csv(spark, path)
+        df = typed(table, raw)
+        (df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+           .saveAsTable(f"{CATALOG}.{SCHEMA}.{table}"))
+        n = spark.table(f"{CATALOG}.{SCHEMA}.{table}").count()
+        print(f"{CATALOG}.{SCHEMA}.{table}: {n} rows ({how})")
+
+    spark.sql(view_sql(args.data_dir))
+    rows = spark.table(VIEW).count()
+    print(f"{VIEW}: {rows} rows (expected 2240)")
+    if rows == 0:
+        raise SystemExit("the view is empty")
+
+
+if __name__ == "__main__":
+    main()</pre>
+<div class="file">src/train_model.py</div>
+<pre>"""Task 2: train the genre model from the view and register it in Unity Catalog.
+
+Same features, target, pipeline and hold-out as pipeline-db-ml/src/contexts/train_model/TrainModel.py.
+Logs accuracy and the classification report to MLflow, refits on all rows, logs the pyfunc wrapper
+(GenreModel) as workspace.chinook.genero_cliente and points the alias Champion at the new version.
+"""
+import argparse
+import os
+import sys
+import tempfile
+
+VIEW = "workspace.chinook.vw_cliente_genero"
+MODEL_NAME = "workspace.chinook.genero_cliente"
+ALIAS = "Champion"
+
+
+def src_dir(data_dir):
+    try:
+        return os.path.dirname(os.path.abspath(__file__))
+    except NameError:  # __file__ is not always defined in a job's python task
+        return os.path.join(os.path.dirname(data_dir.rstrip("/")), "src")
+
+
+def get_dbutils(spark):
+    try:
+        from databricks.sdk.runtime import dbutils  # noqa: F401
+        return dbutils
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from pyspark.dbutils import DBUtils
+        return DBUtils(spark)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", required=True)
+    ap.add_argument("--experiment", default=None, help="MLflow experiment path, e.g. /Users/&lt;me&gt;/genre_model_train")
+    args = ap.parse_args()
+
+    here = src_dir(args.data_dir)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    from genre_model import FEATURES, TARGET, GenreModel  # noqa: E402
+
+    import mlflow
+    import numpy as np
+    import pandas as pd
+    import sklearn
+    from mlflow.tracking import MlflowClient
+    from pyspark.sql import SparkSession
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.model_selection import train_test_split
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    spark = SparkSession.builder.getOrCreate()
+    df = spark.table(VIEW).select(*FEATURES, TARGET).toPandas()
+    print(f"Filas recuperadas: {len(df)}")
+    if df.empty:
+        raise SystemExit(f"{VIEW} is empty")
+    print(df.head(3).to_string(index=False))
+    print(f"Géneros distintos: {df[TARGET].nunique()}")
+
+    X = df[FEATURES]
+    y = df[TARGET]
+    # Sin stratify: hay géneros con una sola fila y stratify lanzaría error.
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    def nuevo_pipeline():
+        return Pipeline([
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+            ("clf", LogisticRegression(max_iter=1000)),
+        ])
+
+    mlflow.set_tracking_uri("databricks")
+    mlflow.set_registry_uri("databricks-uc")
+    if args.experiment:
+        mlflow.set_experiment(args.experiment)
+
+    with mlflow.start_run(run_name="genre_model_train") as run:
+        model = nuevo_pipeline()
+        model.fit(x_train, y_train)
+        y_pred = model.predict(x_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, zero_division=0)
+        print(f"Accuracy (hold-out 20%): {accuracy:.3f}")
+        print(report)
+        mlflow.log_params({"features": ",".join(FEATURES), "test_size": 0.2, "random_state": 42,
+                           "max_iter": 1000, "rows": len(df), "classes": int(y.nunique())})
+        mlflow.log_metric("accuracy", accuracy)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "classification_report.txt")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(f"Accuracy (hold-out 20%): {accuracy:.4f}\n\n{report}")
+            mlflow.log_artifact(path)
+
+        # Reentrenar con todos los datos
+        model = nuevo_pipeline()
+        model.fit(X, y)
+
+        input_example = pd.DataFrame([
+            {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+            {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+            {"tipo_correo": "hotmail", "pais": "United Kingdom", "ciudad": "London"},
+        ])
+        pip_requirements = [
+            f"mlflow=={mlflow.__version__}",
+            f"scikit-learn=={sklearn.__version__}",
+            f"pandas=={pd.__version__}",
+            f"numpy=={np.__version__}",
+        ]
+        try:
+            import cloudpickle
+            pip_requirements.append(f"cloudpickle=={cloudpickle.__version__}")
+        except ImportError:
+            pass
+
+        log_kwargs = dict(
+            python_model=GenreModel(model),
+            input_example=input_example,
+            code_paths=[os.path.join(here, "genre_model.py")],
+            pip_requirements=pip_requirements,
+            registered_model_name=MODEL_NAME,
+        )
+        if int(mlflow.__version__.split(".")[0]) &gt;= 3:
+            info = mlflow.pyfunc.log_model(name="model", **log_kwargs)
+        else:
+            info = mlflow.pyfunc.log_model(artifact_path="model", **log_kwargs)
+
+    client = MlflowClient(registry_uri="databricks-uc")
+    version = getattr(info, "registered_model_version", None)
+    if version is None:
+        versions = [mv for mv in client.search_model_versions(f"name='{MODEL_NAME}'")
+                    if mv.run_id == run.info.run_id]
+        if not versions:
+            raise SystemExit(f"no version of {MODEL_NAME} found for run {run.info.run_id}")
+        version = max(int(mv.version) for mv in versions)
+    version = str(version)
+    client.set_registered_model_alias(MODEL_NAME, ALIAS, version)
+    print(f"Registered {MODEL_NAME} version {version}; alias {ALIAS} -&gt; {version}; run {run.info.run_id}")
+
+    dbutils = get_dbutils(spark)
+    try:
+        dbutils.jobs.taskValues.set(key="model_version", value=version)
+        print("task value model_version set")
+    except Exception as e:  # noqa: BLE001 - the next task falls back to the alias
+        print(f"task value not set ({type(e).__name__}); deploy_endpoint will resolve the alias")
+
+
+if __name__ == "__main__":
+    main()</pre>
+<div class="file">src/genre_model.py</div>
+<pre>"""MLflow pyfunc wrapper around the scikit-learn pipeline (OneHotEncoder -&gt; LogisticRegression).
+
+Input: a DataFrame with columns tipo_correo, pais, ciudad (tipo_correo may be a full email).
+Output: a DataFrame with genero, top_1, p_1, top_2, p_2, top_3, p_3 (same contract as the
+POST /api/model of pipeline-db-ml: the predicted genre plus the top 3 with probabilities).
+
+Logged with code_paths=[this file], so the serving container can import it as `genre_model`.
+"""
+import pandas as pd
+
+try:  # mlflow is not needed to fit or test the pipeline locally
+    from mlflow.pyfunc import PythonModel as _Base
+except ImportError:  # pragma: no cover
+    _Base = object
+
+FEATURES = ["tipo_correo", "pais", "ciudad"]
+TARGET = "genero"
+OUTPUT_COLUMNS = ["genero", "top_1", "p_1", "top_2", "p_2", "top_3", "p_3"]
+
+
+def extraer_tipo_correo(valor) -&gt; str:
+    """Same rule as the view vw_cliente_genero (and PredictorRequest in pipeline-db-ml):
+    text between '@' and the first '.', lower case. Accepts "gmail" or "ana@yahoo.com.br"."""
+    valor = str(valor).strip().lower()
+    if "@" in valor:
+        valor = valor.split("@", 1)[1]
+    return valor.split(".")[0]
+
+
+def preparar_entrada(model_input) -&gt; pd.DataFrame:
+    if not isinstance(model_input, pd.DataFrame):
+        model_input = pd.DataFrame(model_input)
+    faltan = [c for c in FEATURES if c not in model_input.columns]
+    if faltan:
+        raise ValueError(f"faltan columnas: {faltan}; se esperan {FEATURES}")
+    X = model_input[FEATURES].copy()  # by name: dataframe_records does not guarantee column order
+    X["tipo_correo"] = X["tipo_correo"].map(extraer_tipo_correo)
+    X["pais"] = X["pais"].astype(str).str.strip()
+    X["ciudad"] = X["ciudad"].astype(str).str.strip()
+    return X
+
+
+class GenreModel(_Base):
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+
+    def predict(self, context, model_input, params=None):
+        X = preparar_entrada(model_input)
+        generos = self.pipeline.predict(X)
+        probas = self.pipeline.predict_proba(X)
+        clases = [str(c) for c in self.pipeline.classes_]
+        filas = []
+        for genero, fila in zip(generos, probas):
+            orden = sorted(range(len(clases)), key=lambda k: fila[k], reverse=True)[:3]
+            salida = {"genero": str(genero)}
+            for pos in range(3):
+                if pos &lt; len(orden):
+                    salida[f"top_{pos + 1}"] = clases[orden[pos]]
+                    salida[f"p_{pos + 1}"] = round(float(fila[orden[pos]]), 4)
+                else:
+                    salida[f"top_{pos + 1}"] = ""
+                    salida[f"p_{pos + 1}"] = 0.0
+            filas.append(salida)
+        return pd.DataFrame(filas, columns=OUTPUT_COLUMNS)</pre>
+<div class="file">src/deploy_endpoint.py</div>
+<pre>"""Task 3: publish the Champion version of workspace.chinook.genero_cliente on the endpoint genero-cliente.
+
+Creates the endpoint (Small, scale to zero) if it does not exist, otherwise updates its config to the
+new version; waits until it is ready. Auth is the job's ambient identity (WorkspaceClient()).
+The old config keeps serving until the new one is ready, so a daily update has no downtime.
+"""
+import argparse
+from datetime import timedelta
+
+ENDPOINT = "genero-cliente"
+MODEL_NAME = "workspace.chinook.genero_cliente"
+ALIAS = "Champion"
+TIMEOUT = timedelta(minutes=30)
+
+
+def version_from_task_value():
+    try:
+        from databricks.sdk.runtime import dbutils
+        v = dbutils.jobs.taskValues.get(taskKey="train_model", key="model_version", debugValue="")
+        return str(v) if v else None
+    except Exception as e:  # noqa: BLE001
+        print(f"task value not available ({type(e).__name__})")
+        return None
+
+
+def champion_version():
+    import mlflow
+    from mlflow.tracking import MlflowClient
+    mlflow.set_registry_uri("databricks-uc")
+    mv = MlflowClient(registry_uri="databricks-uc").get_model_version_by_alias(MODEL_NAME, ALIAS)
+    return str(mv.version)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", default=None)  # accepted for symmetry with the other tasks
+    ap.parse_args()
+
+    from databricks.sdk import WorkspaceClient
+    from databricks.sdk.errors import NotFound, ResourceDoesNotExist
+    from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntityInput
+
+    w = WorkspaceClient()
+
+    alias_version = champion_version()
+    task_version = version_from_task_value()
+    if task_version and task_version != alias_version:
+        print(f"note: task value says version {task_version}, alias {ALIAS} says {alias_version}; using the alias")
+    version = alias_version
+    print(f"{MODEL_NAME}@{ALIAS} = version {version}")
+
+    entity = ServedEntityInput(
+        entity_name=MODEL_NAME,
+        entity_version=version,
+        workload_size="Small",
+        scale_to_zero_enabled=True,
+    )
+
+    try:
+        existing = w.serving_endpoints.get(ENDPOINT)
+    except (NotFound, ResourceDoesNotExist):
+        existing = None
+
+    if existing is None:
+        print(f"creating endpoint {ENDPOINT} with version {version} (waiting up to {TIMEOUT})")
+        endpoint = w.serving_endpoints.create_and_wait(
+            name=ENDPOINT,
+            config=EndpointCoreConfigInput(name=ENDPOINT, served_entities=[entity]),
+            timeout=TIMEOUT,
+        )
+    else:
+        served = [(e.entity_name, str(e.entity_version))
+                  for e in ((existing.config.served_entities if existing.config else None) or [])]
+        updating = existing.state and existing.state.config_update and \
+            existing.state.config_update.value == "IN_PROGRESS"
+        if updating:
+            print(f"endpoint {ENDPOINT} is updating; waiting for it first")
+            existing = w.serving_endpoints.wait_get_serving_endpoint_not_updating(ENDPOINT, timeout=TIMEOUT)
+            served = [(e.entity_name, str(e.entity_version))
+                      for e in ((existing.config.served_entities if existing.config else None) or [])]
+        if served == [(MODEL_NAME, version)]:
+            print(f"endpoint {ENDPOINT} already serves version {version}; no update")
+            endpoint = existing
+        else:
+            print(f"updating endpoint {ENDPOINT}: {served} -&gt; {MODEL_NAME} v{version} (waiting up to {TIMEOUT})")
+            endpoint = w.serving_endpoints.update_config_and_wait(
+                name=ENDPOINT,
+                served_entities=[entity],
+                timeout=TIMEOUT,
+            )
+
+    state = endpoint.state
+    ready = state.ready.value if state and state.ready else None
+    config_update = state.config_update.value if state and state.config_update else None
+    print(f"endpoint {ENDPOINT}: ready={ready} config_update={config_update}")
+    for e in (endpoint.config.served_entities if endpoint.config else None) or []:
+        print(f"  serves {e.entity_name} version {e.entity_version}")
+    host = w.config.host.rstrip("/")
+    print(f"invocation URL: {host}/serving-endpoints/{ENDPOINT}/invocations")
+    if ready != "READY":
+        raise SystemExit(f"endpoint {ENDPOINT} is not READY (ready={ready})")
+
+
+if __name__ == "__main__":
+    main()</pre>
+<div class="file">src/smoke_test.py</div>
+<pre>"""Task 4: query the endpoint genero-cliente with three known rows; fail the job if it does not answer."""
+import argparse
+import json
+import sys
+
+ENDPOINT = "genero-cliente"
+ROWS = [
+    {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+    {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+    {"tipo_correo": "ana@yahoo.com.br", "pais": "Brazil", "ciudad": "São Paulo"},
+]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", default=None)  # accepted for symmetry with the other tasks
+    ap.parse_args()
+
+    from databricks.sdk import WorkspaceClient
+
+    w = WorkspaceClient()
+    response = w.serving_endpoints.query(name=ENDPOINT, dataframe_records=ROWS)
+    predictions = response.predictions or []
+    for row, pred in zip(ROWS, predictions):
+        print(json.dumps({"entrada": row, "prediccion": pred}, ensure_ascii=False))
+
+    if len(predictions) != len(ROWS):
+        print(f"expected {len(ROWS)} predictions, got {len(predictions)}: {predictions!r}")
+        sys.exit(1)
+    empty = [i for i, p in enumerate(predictions) if not (isinstance(p, dict) and p.get("genero"))]
+    if empty:
+        print(f"empty genero in predictions {empty}: {predictions!r}")
+        sys.exit(1)
+
+    berlin = predictions[0].get("genero")
+    print(f"yahoo/Germany/Berlin -&gt; {berlin} ({'Metal, as the previous model' if berlin == 'Metal' else 'not Metal'})")
+    print("smoke test passed")
+
+
+if __name__ == "__main__":
+    main()</pre>
+</section>
+
+</div>
+</body>
+</html>
