@@ -2,8 +2,8 @@
 #   databricks bundle validate -t dev
 #   databricks bundle deploy   -t dev
 #   databricks bundle run      -t dev genre_model_train
-# The workspace host and credentials come from the Databricks CLI profile (databricks auth login);
-# nothing secret is stored in this repo.
+# Credentials come from the Databricks CLI login (databricks auth login); nothing secret is stored in this repo.
+# The workspace host is public and is set per target below.
 bundle:
   name: genre_model
 
@@ -20,8 +20,8 @@ sync:
 
 targets:
   dev:
-    mode: development
+    # No 'mode: development': that mode pauses every schedule and prefixes resource names, and the
+    # assignment needs the daily run active under the plain job name.
     default: true
-    presets:
-      # development mode pauses schedules by default; the assignment needs the daily run active.
-      trigger_pause_status: UNPAUSED
+    workspace:
+      host: https://dbc-c19856c3-faa2.cloud.databricks.com
