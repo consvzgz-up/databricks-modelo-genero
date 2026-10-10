@@ -1,0 +1,65 @@
+# Daily job: load Chinook into Delta, train the genre model, publish it on the serving endpoint, smoke test.
+# Serverless only (Databricks Free Edition): no clusters, Python tasks with a job-level environment.
+resources:
+  jobs:
+    genre_model_train:
+      name: genre_model_train
+      max_concurrent_runs: 1
+      email_notifications: {}
+
+      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"   # every day at 03:00 (Quartz: seconds first)
+        timezone_id: America/Mexico_City
+        pause_status: UNPAUSED
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - scikit-learn==1.6.1
+              - mlflow>=2.15,<4
+              - pandas>=1.5,<3
+              - databricks-sdk>=0.40
+
+      tasks:
+        - task_key: load_chinook
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/load_chinook.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+
+        - task_key: train_model
+          depends_on:
+            - task_key: load_chinook
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/train_model.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+              - --experiment
+              - /Users/${workspace.current_user.userName}/genre_model_train
+
+        - task_key: deploy_endpoint
+          depends_on:
+            - task_key: train_model
+          environment_key: default
+          timeout_seconds: 3600
+          spark_python_task:
+            python_file: ../src/deploy_endpoint.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data
+
+        - task_key: smoke_test
+          depends_on:
+            - task_key: deploy_endpoint
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/smoke_test.py
+            parameters:
+              - --data-dir
+              - ${workspace.file_path}/data

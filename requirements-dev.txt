@@ -1,0 +1,6 @@
+# Local tools only (the job installs its own environment from resources/genre_model_train.job.yml)
+requests
+databricks-sdk
+mlflow
+scikit-learn==1.6.1
+pandas

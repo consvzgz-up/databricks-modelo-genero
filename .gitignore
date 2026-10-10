@@ -1,0 +1,18 @@
+# secrets: the token lives only in your environment or the Databricks CLI profile
+.env
+.env.*
+*.pem
+
+# Databricks bundle state
+.databricks/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# editors
+.vscode/
+.idea/
+.DS_Store

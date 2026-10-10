@@ -1,0 +1,27 @@
+# Bundle: daily training job for the music-genre model and its serving endpoint.
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+#   databricks bundle run      -t dev genre_model_train
+# The workspace host and credentials come from the Databricks CLI profile (databricks auth login);
+# nothing secret is stored in this repo.
+bundle:
+  name: genre_model
+
+include:
+  - resources/*.yml
+
+# The schema workspace.chinook is created by src/load_chinook.py (CREATE SCHEMA IF NOT EXISTS), not as a
+# bundle resource: in development mode a bundle schema would be renamed dev_<user>_chinook.
+
+sync:
+  include:
+    - data/*.csv
+    - sql/*.sql
+
+targets:
+  dev:
+    mode: development
+    default: true
+    presets:
+      # development mode pauses schedules by default; the assignment needs the daily run active.
+      trigger_pause_status: UNPAUSED
