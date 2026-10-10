@@ -1,0 +1,129 @@
+% Guía de consulta del endpoint genero-cliente (Bases de Datos, UP)
+% Compilar con: pdflatex guia-consulta-endpoint.tex   (dos veces, o latexmk -pdf)
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, urlcolor=blue!60!black, linkcolor=black}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\definecolor{codebg}{RGB}{16,24,40}
+\definecolor{codefg}{RGB}{226,232,240}
+\lstset{
+  basicstyle=\ttfamily\small\color{codefg},
+  backgroundcolor=\color{codebg},
+  frame=single, framerule=0pt, framesep=6pt, xleftmargin=6pt, xrightmargin=6pt,
+  breaklines=true, breakatwhitespace=false, columns=fullflexible, keepspaces=true,
+  showstringspaces=false,
+  literate={ã}{{\~a}}1 {í}{{\'i}}1 {é}{{\'e}}1 {á}{{\'a}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+}
+
+\title{Cómo consultar el endpoint \texttt{genero-cliente}}
+\author{Bases de Datos, UP}
+\date{Octubre de 2026}
+
+\begin{document}
+\maketitle
+
+Modelo que predice el género musical probable de un cliente a partir de su proveedor de correo, país y
+ciudad. Entrenado cada día por un job de Databricks y publicado en un endpoint de Databricks Model Serving.
+
+\section*{Datos de acceso}
+\begin{tabular}{@{}L{3.2cm}L{12.3cm}@{}}
+\toprule
+\textbf{Dato} & \textbf{Valor} \tabularnewline
+\midrule
+URL del endpoint & \url{https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations} \tabularnewline
+Token de acceso & se entrega por separado; va en la cabecera \texttt{Authorization: Bearer <token>} \tabularnewline
+Método & \texttt{POST}, cuerpo JSON, cabecera \texttt{Content-Type: application/json} \tabularnewline
+\bottomrule
+\end{tabular}
+
+\section*{Entrada}
+Una lista de registros con tres campos de texto:
+
+\begin{tabular}{@{}L{2.6cm}L{8.4cm}L{4.5cm}@{}}
+\toprule
+\textbf{Campo} & \textbf{Qué es} & \textbf{Ejemplo} \tabularnewline
+\midrule
+\texttt{tipo\_correo} & proveedor del correo (\texttt{gmail}, \texttt{yahoo}, \texttt{hotmail}\ldots); también se acepta el correo completo & \texttt{yahoo} o \texttt{ana@yahoo.com.br} \tabularnewline
+\texttt{pais} & país del cliente & \texttt{Germany} \tabularnewline
+\texttt{ciudad} & ciudad del cliente & \texttt{Berlin} \tabularnewline
+\bottomrule
+\end{tabular}
+
+\section*{Ejemplo con curl}
+Sustituya \texttt{PEGUE\_AQUI\_EL\_TOKEN} por el token, sin comillas ni signos \texttt{<} \texttt{>}:
+
+\begin{lstlisting}
+curl -X POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations \
+  -H "Authorization: Bearer PEGUE_AQUI_EL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dataframe_records": [{"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"}]}'
+\end{lstlisting}
+
+En Git Bash o PowerShell de Windows, el cuerpo va con comillas dobles escapadas:
+
+\begin{lstlisting}
+curl -X POST https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations -H "Authorization: Bearer PEGUE_AQUI_EL_TOKEN" -H "Content-Type: application/json" -d "{\"dataframe_records\": [{\"tipo_correo\": \"yahoo\", \"pais\": \"Germany\", \"ciudad\": \"Berlin\"}]}"
+\end{lstlisting}
+
+\section*{Ejemplo con Python}
+\begin{lstlisting}[language=Python]
+import os, requests
+
+URL = "https://dbc-c19856c3-faa2.cloud.databricks.com/serving-endpoints/genero-cliente/invocations"
+TOKEN = os.environ["DATABRICKS_TOKEN"]   # el token, en una variable de entorno
+
+respuesta = requests.post(
+    URL,
+    headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+    json={"dataframe_records": [
+        {"tipo_correo": "yahoo", "pais": "Germany", "ciudad": "Berlin"},
+        {"tipo_correo": "gmail", "pais": "Brazil", "ciudad": "São Paulo"},
+    ]},
+    timeout=60,
+)
+print(respuesta.status_code)
+print(respuesta.json())
+\end{lstlisting}
+
+\section*{Respuesta}
+Un objeto \texttt{predictions} con un resultado por registro enviado, en el mismo orden:
+
+\begin{lstlisting}
+{
+  "predictions": [
+    {
+      "genero": "Metal",
+      "top_1": "Metal", "p_1": 0.4076,
+      "top_2": "Rock", "p_2": 0.3364,
+      "top_3": "Alternative & Punk", "p_3": 0.0752
+    }
+  ]
+}
+\end{lstlisting}
+
+\texttt{genero} es el género predicho; \texttt{top\_1} a \texttt{top\_3} son los tres géneros más probables con su probabilidad.
+
+\section*{Si algo falla}
+\begin{tabular}{@{}L{4.6cm}L{5.4cm}L{5.5cm}@{}}
+\toprule
+\textbf{Respuesta} & \textbf{Causa} & \textbf{Solución} \tabularnewline
+\midrule
+\texttt{401 Credential was not sent or was of an unsupported type} & el token no llegó bien (falta, con \texttt{<} \texttt{>}, o con espacios) & revise la cabecera \texttt{Authorization: Bearer <token>} \tabularnewline
+\texttt{403} & el token no tiene permiso sobre este endpoint o ya venció & pida un token nuevo \tabularnewline
+la primera llamada tarda más de lo normal & el endpoint se apaga cuando no se usa y arranca con la primera petición & espere y reintente; las siguientes responden en segundos \tabularnewline
+\texttt{400} con mención a columnas & falta alguno de los tres campos o el nombre está mal escrito & use exactamente \texttt{tipo\_correo}, \texttt{pais}, \texttt{ciudad} \tabularnewline
+\bottomrule
+\end{tabular}
+
+\end{document}
