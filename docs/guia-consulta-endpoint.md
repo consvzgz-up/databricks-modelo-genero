@@ -87,4 +87,3 @@ Un objeto `predictions` con un resultado por registro enviado, en el mismo orden
 | la primera llamada tarda más de lo normal | el endpoint se apaga cuando no se usa y arranca con la primera petición | espere y reintente; las siguientes responden en segundos |
 | `400` con mención a columnas | falta alguno de los tres campos o el nombre está mal escrito | use exactamente `tipo_correo`, `pais`, `ciudad` |
 
-Código y documentación completa: https://github.com/consvzgz-up/databricks-modelo-genero
