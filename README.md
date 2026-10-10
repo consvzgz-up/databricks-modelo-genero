@@ -200,7 +200,8 @@ la tarea `deploy_endpoint` cambia la configuración del endpoint para que sirva 
 prepara, la anterior sigue respondiendo; el cambio ocurre cuando la nueva está lista, sin tiempo fuera de servicio
 ([create-manage-serving-endpoints](https://docs.databricks.com/aws/en/machine-learning/model-serving/create-manage-serving-endpoints)).
 Así se vio durante la segunda corrida: el endpoint seguía `READY` y sirviendo la versión 1 mientras la versión 2
-aparecía como configuración pendiente, y las consultas respondían con normalidad. La liga y el token no cambian.
+aparecía como configuración pendiente, y las consultas respondían con normalidad. Al terminar, el endpoint quedó
+`READY` sirviendo la versión 2 y la prueba de humo pasó de nuevo. La liga y el token no cambian.
 
 ## Cómo se genera el token (lo hace la dueña o el dueño del workspace)
 
